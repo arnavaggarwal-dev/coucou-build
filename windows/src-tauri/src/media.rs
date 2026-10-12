@@ -596,6 +596,13 @@ fn uploaded_url(v: &Value) -> Option<String> {
 /// picture was dropped.
 static LAST_IMAGE: Mutex<Option<String>> = Mutex::new(None);
 
+/// A new chat must never reuse the previous one's image (Chat::reset).
+pub fn forget_last_image() {
+    if let Ok(mut last) = LAST_IMAGE.lock() {
+        *last = None;
+    }
+}
+
 pub fn last_image() -> Option<PathBuf> {
     let name = LAST_IMAGE.lock().ok()?.clone()?;
     media_path(&name).ok()
@@ -806,6 +813,13 @@ fn hide_overlay(win: &tauri::WebviewWindow) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_new_chat_forgets_the_last_image() {
+        *LAST_IMAGE.lock().unwrap() = Some("old.png".into());
+        forget_last_image();
+        assert!(LAST_IMAGE.lock().unwrap().is_none());
+    }
 
     #[test]
     fn output_is_guessed_from_the_model_id() {

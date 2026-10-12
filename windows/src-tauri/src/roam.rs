@@ -194,7 +194,7 @@ pub async fn roam_capture(app: AppHandle, area: Option<Area>) -> Result<String, 
     let y0 = (a.y * h).round() as i32;
     let (cw, ch) = ((a.w * w).round() as i32, (a.h * h).round() as i32);
     tauri::async_runtime::spawn_blocking(move || {
-        let path = std::env::temp_dir().join("coucou-screenshot.png");
+        let path = crate::files::screenshot_path()?;
         capture(pos.x + x0, pos.y + y0, cw, ch, &path)?;
         Ok(path.to_string_lossy().into_owned())
     })

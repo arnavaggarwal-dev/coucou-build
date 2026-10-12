@@ -131,7 +131,7 @@ pub fn roam_pointer(app: AppHandle, x: f64, y: f64, phase: String) {
 #[tauri::command]
 pub async fn roam_capture(_app: AppHandle, area: Option<Area>) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let path = std::env::temp_dir().join("coucou-screenshot.png");
+        let path = crate::files::screenshot_path()?;
         capture(&path)?;
         if let Some(area) = area {
             crop_png(&path, area)?;
