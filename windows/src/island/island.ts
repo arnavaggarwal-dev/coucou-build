@@ -129,6 +129,7 @@ export class Island {
       reveal: () => this.reveal(),
       wardrobeFromDesktop: () => this.wardrobeFromDesktop(),
       dizzyFromDesktop: () => this.handleDizzy(),
+      wake: () => this.noteActivity(),
     });
     this.build();
     this.wireFsm();
@@ -860,11 +861,14 @@ export class Island {
         return;
       }
       if (State.mode !== "expanded") {
+        if (State.asleep) this.noteActivity();
         this.fsm.click();
         return;
       }
       if (this.isBotHit(e.clientX, e.clientY)) {
         this.cancelBotHover();
+        // Asleep, a click wakes them all instead of slapping him.
+        if (State.asleep) return this.noteActivity();
         this.engine.slap();
       }
     });

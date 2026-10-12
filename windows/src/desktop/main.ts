@@ -256,6 +256,11 @@ class DesktopMochi {
         this.endDrag(e);
         return;
       }
+      // Asleep, a click wakes him (and every Mochi) instead of poking him.
+      if (this.asleep) {
+        void emitToWindow(ISLAND, DESKTOP_EVENTS.wake);
+        return;
+      }
       // Single click → poke, once it is clear it isn't a double click.
       this.cancelPoke();
       this.pokeTimer = window.setTimeout(() => {
