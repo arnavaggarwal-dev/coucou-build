@@ -1,0 +1,35 @@
+name: cloud-build
+# Builds Coucou and coucou-hook on every push; install-cloud.bat downloads the result.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: build
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: windows/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: windows
+      - run: npm ci
+      - run: npx tauri build --no-bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coucou-windows
+          retention-days: 14
+          path: |
+            windows/target/release/coucou.exe
+            windows/target/release/coucou-hook.exe

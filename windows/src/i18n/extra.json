@@ -265,6 +265,17 @@
    "ru": "Некорректный ответ API: {error}",
    "id": "Respons API tidak valid: {error}"
   },
+  "Bean": {
+   "zh-Hans": "豆子",
+   "hi": "बीन",
+   "es": "Judía",
+   "ar": "حبة فاصولياء",
+   "fr": "Haricot",
+   "bn": "শিম",
+   "pt-BR": "Feijão",
+   "ru": "Фасолинка",
+   "id": "Kacang"
+  },
   "Beanie": {
    "zh-Hans": "毛线帽",
    "hi": "ऊनी टोपी",
@@ -275,6 +286,17 @@
    "pt-BR": "Gorro",
    "ru": "Шапка",
    "id": "Kupluk"
+  },
+  "Bee": {
+   "zh-Hans": "蜜蜂",
+   "hi": "मधुमक्खी",
+   "es": "Abeja",
+   "ar": "نحلة",
+   "fr": "Abeille",
+   "bn": "মৌমাছি",
+   "pt-BR": "Abelha",
+   "ru": "Пчела",
+   "id": "Lebah"
   },
   "Bow": {
    "zh-Hans": "蝴蝶结",
@@ -353,6 +375,17 @@
    "ru": "Не удаётся прочитать {path}: {error}",
    "id": "Tidak dapat membaca {path}: {error}"
   },
+  "Cat ears": {
+   "zh-Hans": "猫耳朵",
+   "hi": "बिल्ली के कान",
+   "es": "Orejas de gato",
+   "ar": "آذان قطة",
+   "fr": "Oreilles de chat",
+   "bn": "বিড়ালের কান",
+   "pt-BR": "Orelhas de gato",
+   "ru": "Кошачьи ушки",
+   "id": "Telinga kucing"
+  },
   "Chat providers": {
    "zh-Hans": "聊天服务商",
    "hi": "चैट प्रदाता",
@@ -385,6 +418,17 @@
    "pt-BR": "Converse com um modelo que você mesmo executa: Ollama ou LM Studio (deixe o endereço vazio para usar o padrão neste computador), ou qualquer servidor compatível com a API da OpenAI, como vLLM ou llama.cpp. Depois de conectado, escolha-o acima da caixa de chat.",
    "ru": "Общайтесь с моделью, которую запускаете сами: Ollama или LM Studio (оставьте адрес пустым, чтобы использовать обычный адрес на этом компьютере) или любой сервер с API OpenAI, например vLLM или llama.cpp. После подключения выберите его над полем чата.",
    "id": "Mengobrol dengan model yang Anda jalankan sendiri: Ollama atau LM Studio (kosongkan alamat untuk alamat biasa di komputer ini), atau server apa pun yang mendukung API OpenAI, seperti vLLM atau llama.cpp. Setelah terhubung, pilih di atas kotak obrolan."
+  },
+  "Chef hat": {
+   "zh-Hans": "厨师帽",
+   "hi": "शेफ़ की टोपी",
+   "es": "Gorro de chef",
+   "ar": "قبعة الطاهي",
+   "fr": "Toque de chef",
+   "bn": "শেফের টুপি",
+   "pt-BR": "Chapéu de chef",
+   "ru": "Поварской колпак",
+   "id": "Topi koki"
   },
   "Choose a model": {
    "zh-Hans": "选择模型",
@@ -650,6 +694,17 @@
    "ru": "Только счётчики и названия проектов — никогда команды, файлы или промпты. Хранится на этом компьютере 12 недель.",
    "id": "Hanya hitungan dan nama proyek — tidak pernah perintah, file, atau prompt. Disimpan di komputer ini selama 12 minggu."
   },
+  "Cowboy hat": {
+   "zh-Hans": "牛仔帽",
+   "hi": "काउबॉय टोपी",
+   "es": "Sombrero vaquero",
+   "ar": "قبعة رعاة البقر",
+   "fr": "Chapeau de cowboy",
+   "bn": "কাউবয় টুপি",
+   "pt-BR": "Chapéu de caubói",
+   "ru": "Ковбойская шляпа",
+   "id": "Topi koboi"
+  },
   "Crown": {
    "zh-Hans": "王冠",
    "hi": "मुकुट",
@@ -671,6 +726,17 @@
    "pt-BR": "Servidor personalizado",
    "ru": "Свой сервер",
    "id": "Server kustom"
+  },
+  "Daifuku": {
+   "zh-Hans": "大福",
+   "hi": "दाइफ़ुकु",
+   "es": "Daifuku",
+   "ar": "دايفوكو",
+   "fr": "Daifuku",
+   "bn": "দাইফুকু",
+   "pt-BR": "Daifuku",
+   "ru": "Дайфуку",
+   "id": "Daifuku"
   },
   "Default branch CI": {
    "zh-Hans": "默认分支 CI",
@@ -870,6 +936,17 @@
    "ru": "Пятница",
    "id": "Jumat"
   },
+  "Frog": {
+   "zh-Hans": "青蛙",
+   "hi": "मेंढक",
+   "es": "Rana",
+   "ar": "ضفدع",
+   "fr": "Grenouille",
+   "bn": "ব্যাঙ",
+   "pt-BR": "Sapo",
+   "ru": "Лягушка",
+   "id": "Katak"
+  },
   "From anywhere": {
    "zh-Hans": "全局",
    "hi": "कहीं से भी",
@@ -880,6 +957,17 @@
    "pt-BR": "De qualquer lugar",
    "ru": "Отовсюду",
    "id": "Dari mana saja"
+  },
+  "Ghost": {
+   "zh-Hans": "幽灵",
+   "hi": "भूत",
+   "es": "Fantasma",
+   "ar": "شبح",
+   "fr": "Fantôme",
+   "bn": "ভূত",
+   "pt-BR": "Fantasma",
+   "ru": "Привидение",
+   "id": "Hantu"
   },
   "Go to pill 1 to 9": {
    "zh-Hans": "前往第 1 至 9 个标签",
@@ -902,6 +990,17 @@
    "pt-BR": "Ir para a permissão ou pergunta pendente",
    "ru": "Перейти к ожидающему разрешению или вопросу",
    "id": "Buka izin atau pertanyaan yang menunggu"
+  },
+  "Graduation cap": {
+   "zh-Hans": "学位帽",
+   "hi": "दीक्षांत टोपी",
+   "es": "Birrete",
+   "ar": "قبعة التخرج",
+   "fr": "Chapeau de diplômé",
+   "bn": "স্নাতক টুপি",
+   "pt-BR": "Capelo",
+   "ru": "Выпускная шапочка",
+   "id": "Topi wisuda"
   },
   "Hide project names": {
    "zh-Hans": "隐藏项目名称",
@@ -1156,6 +1255,17 @@
    "ru": "Ключ сохранён в {store}.",
    "id": "Kunci tersimpan di {store}."
   },
+  "Ladybug": {
+   "zh-Hans": "瓢虫",
+   "hi": "लेडीबग",
+   "es": "Mariquita",
+   "ar": "دعسوقة",
+   "fr": "Coccinelle",
+   "bn": "লেডিবাগ",
+   "pt-BR": "Joaninha",
+   "ru": "Божья коровка",
+   "id": "Kepik"
+  },
   "Later — keep it waiting": {
    "zh-Hans": "稍后 — 让它等着",
    "hi": "बाद में — इसे इंतज़ार करने दें",
@@ -1221,6 +1331,17 @@
    "pt-BR": "Reunião",
    "ru": "Встреча",
    "id": "Rapat"
+  },
+  "Mochi": {
+   "zh-Hans": "Mochi",
+   "hi": "Mochi",
+   "es": "Mochi",
+   "ar": "Mochi",
+   "fr": "Mochi",
+   "bn": "Mochi",
+   "pt-BR": "Mochi",
+   "ru": "Mochi",
+   "id": "Mochi"
   },
   "Monday": {
    "zh-Hans": "星期一",
@@ -1486,6 +1607,17 @@
    "ru": "Ничего не покидает ваш ПК: сервер работает на этом компьютере.",
    "id": "Tidak ada yang keluar dari PC Anda: server berjalan di komputer ini."
   },
+  "Onigiri": {
+   "zh-Hans": "饭团",
+   "hi": "ओनिगिरी",
+   "es": "Onigiri",
+   "ar": "أونيغيري",
+   "fr": "Onigiri",
+   "bn": "ওনিগিরি",
+   "pt-BR": "Onigiri",
+   "ru": "Онигири",
+   "id": "Onigiri"
+  },
   "Only files dropped on the island can be added.": {
    "zh-Hans": "只能添加拖放到岛上的文件。",
    "hi": "केवल आइलैंड पर छोड़ी गई फ़ाइलें ही जोड़ी जा सकती हैं।",
@@ -1606,6 +1738,17 @@
    "pt-BR": "PDF",
    "ru": "PDF",
    "id": "PDF"
+  },
+  "Panda": {
+   "zh-Hans": "熊猫",
+   "hi": "पांडा",
+   "es": "Panda",
+   "ar": "باندا",
+   "fr": "Panda",
+   "bn": "পান্ডা",
+   "pt-BR": "Panda",
+   "ru": "Панда",
+   "id": "Panda"
   },
   "Party hat": {
    "zh-Hans": "派对帽",
@@ -1859,6 +2002,17 @@
    "pt-BR": "Resultado",
    "ru": "Результат",
    "id": "Hasil"
+  },
+  "Robot": {
+   "zh-Hans": "机器人",
+   "hi": "रोबोट",
+   "es": "Robot",
+   "ar": "روبوت",
+   "fr": "Robot",
+   "bn": "রোবট",
+   "pt-BR": "Robô",
+   "ru": "Робот",
+   "id": "Robot"
   },
   "Round glasses": {
    "zh-Hans": "圆框眼镜",
@@ -2124,6 +2278,17 @@
    "ru": "Показывает использование тарифа Codex (недельный лимит и оставшиеся бесплатные сбросы) в заголовке острова. Coucou спрашивает Codex CLI (codex app-server), когда видна вкладка; ничего не устанавливается. В Codex нужно войти через ChatGPT.",
    "id": "Menampilkan pemakaian paket Codex Anda (batas mingguan dan sisa reset gratis) di header pulau. Coucou menanyakan Codex CLI (codex app-server) saat tab tampil; tidak ada yang dipasang. Codex harus masuk dengan ChatGPT."
   },
+  "Sprout": {
+   "zh-Hans": "嫩芽",
+   "hi": "अंकुर",
+   "es": "Brote",
+   "ar": "برعم",
+   "fr": "Pousse",
+   "bn": "অঙ্কুর",
+   "pt-BR": "Broto",
+   "ru": "Росток",
+   "id": "Tunas"
+  },
   "Start a new Antigravity conversation to pick the hooks up.": {
    "zh-Hans": "开启新的 Antigravity 对话即可启用 hooks。",
    "hi": "hooks लागू करने के लिए Antigravity में नई बातचीत शुरू करें।",
@@ -2178,6 +2343,28 @@
    "pt-BR": "Começar um novo chat",
    "ru": "Начать новый чат",
    "id": "Mulai obrolan baru"
+  },
+  "Straw hat": {
+   "zh-Hans": "草帽",
+   "hi": "पुआल की टोपी",
+   "es": "Sombrero de paja",
+   "ar": "قبعة من القش",
+   "fr": "Chapeau de paille",
+   "bn": "খড়ের টুপি",
+   "pt-BR": "Chapéu de palha",
+   "ru": "Соломенная шляпа",
+   "id": "Topi jerami"
+  },
+  "Strawberry": {
+   "zh-Hans": "草莓",
+   "hi": "स्ट्रॉबेरी",
+   "es": "Fresa",
+   "ar": "فراولة",
+   "fr": "Fraise",
+   "bn": "স্ট্রবেরি",
+   "pt-BR": "Morango",
+   "ru": "Клубника",
+   "id": "Stroberi"
   },
   "Sunday": {
    "zh-Hans": "星期日",
@@ -2432,6 +2619,17 @@
    "ru": "Четверг",
    "id": "Kamis"
   },
+  "Tofu": {
+   "zh-Hans": "豆腐",
+   "hi": "टोफ़ू",
+   "es": "Tofu",
+   "ar": "توفو",
+   "fr": "Tofu",
+   "bn": "টোফু",
+   "pt-BR": "Tofu",
+   "ru": "Тофу",
+   "id": "Tahu"
+  },
   "Token": {
    "zh-Hans": "令牌",
    "hi": "टोकन",
@@ -2464,6 +2662,17 @@
    "pt-BR": "Falta ao token o escopo necessário",
    "ru": "У токена нет нужной области доступа",
    "id": "Token tidak memiliki cakupan yang diperlukan"
+  },
+  "Top hat": {
+   "zh-Hans": "高礼帽",
+   "hi": "टॉप हैट",
+   "es": "Sombrero de copa",
+   "ar": "قبعة عالية",
+   "fr": "Haut-de-forme",
+   "bn": "টপ হ্যাট",
+   "pt-BR": "Cartola",
+   "ru": "Цилиндр",
+   "id": "Topi tinggi"
   },
   "Total stars": {
    "zh-Hans": "星标总数",
@@ -3360,6 +3569,105 @@
    "pt-BR": "Só um arquivo solto na ilha pode ser enviado com uma pergunta.",
    "ru": "С вопросом можно отправить только файл, перетащенный на остров.",
    "id": "Hanya file yang dijatuhkan ke pulau yang bisa dikirim bersama pertanyaan."
+  },
+  "Each Mochi has its own outfit": {
+   "zh-Hans": "每个 Mochi 都有自己的装扮",
+   "hi": "हर Mochi का अपना पहनावा",
+   "es": "Cada Mochi tiene su propio atuendo",
+   "ar": "لكل Mochi زيّه الخاص",
+   "fr": "Chaque Mochi a sa propre tenue",
+   "bn": "প্রতিটি Mochi-র নিজস্ব পোশাক",
+   "pt-BR": "Cada Mochi tem sua própria roupa",
+   "ru": "У каждого Mochi свой наряд",
+   "id": "Setiap Mochi punya pakaiannya sendiri"
+  },
+  "Same outfit for every Mochi": {
+   "zh-Hans": "所有 Mochi 使用同一套装扮",
+   "hi": "हर Mochi के लिए एक ही पहनावा",
+   "es": "El mismo atuendo para todos los Mochi",
+   "ar": "الزي نفسه لكل Mochi",
+   "fr": "La même tenue pour tous les Mochi",
+   "bn": "সব Mochi-র জন্য একই পোশাক",
+   "pt-BR": "A mesma roupa para todos os Mochi",
+   "ru": "Один наряд для всех Mochi",
+   "id": "Pakaian yang sama untuk semua Mochi"
+  },
+  "Island": {
+   "zh-Hans": "岛",
+   "hi": "आइलैंड",
+   "es": "Isla",
+   "ar": "الشريط",
+   "fr": "Île",
+   "bn": "আইল্যান্ড",
+   "pt-BR": "Ilha",
+   "ru": "Остров",
+   "id": "Pulau"
+  },
+  "Media and voice": {
+   "zh-Hans": "媒体与语音",
+   "hi": "मीडिया और आवाज़",
+   "es": "Multimedia y voz",
+   "ar": "الوسائط والصوت",
+   "fr": "Médias et voix",
+   "bn": "মিডিয়া ও ভয়েস",
+   "pt-BR": "Mídia e voz",
+   "ru": "Медиа и голос",
+   "id": "Media dan suara"
+  },
+  "Search settings": {
+   "zh-Hans": "搜索设置",
+   "hi": "सेटिंग्स खोजें",
+   "es": "Buscar en la configuración",
+   "ar": "ابحث في الإعدادات",
+   "fr": "Rechercher dans les réglages",
+   "bn": "সেটিংস খুঁজুন",
+   "pt-BR": "Buscar nas configurações",
+   "ru": "Поиск настроек",
+   "id": "Cari pengaturan"
+  },
+  "Advanced": {
+   "zh-Hans": "高级",
+   "hi": "उन्नत",
+   "es": "Avanzado",
+   "ar": "متقدم",
+   "fr": "Avancé",
+   "bn": "উন্নত",
+   "pt-BR": "Avançado",
+   "ru": "Дополнительно",
+   "id": "Lanjutan"
+  },
+  "No settings match “{query}”.": {
+   "zh-Hans": "没有与“{query}”匹配的设置。",
+   "hi": "“{query}” से मेल खाती कोई सेटिंग नहीं है।",
+   "es": "Ninguna opción coincide con “{query}”.",
+   "ar": "لا توجد إعدادات تطابق “{query}”.",
+   "fr": "Aucun réglage ne correspond à « {query} ».",
+   "bn": "“{query}”-এর সঙ্গে মেলে এমন কোনো সেটিং নেই।",
+   "pt-BR": "Nenhuma configuração corresponde a “{query}”.",
+   "ru": "Нет настроек по запросу «{query}».",
+   "id": "Tidak ada pengaturan yang cocok dengan “{query}”."
+  },
+  "Pills": {
+   "zh-Hans": "标签页",
+   "hi": "टैब",
+   "es": "Pestañas",
+   "ar": "التبويبات",
+   "fr": "Onglets",
+   "bn": "ট্যাব",
+   "pt-BR": "Abas",
+   "ru": "Вкладки",
+   "id": "Tab"
+  },
+  "Other agents": {
+   "zh-Hans": "其他代理",
+   "hi": "अन्य एजेंट्स",
+   "es": "Otros agentes",
+   "ar": "وكلاء آخرون",
+   "fr": "Autres agents",
+   "bn": "অন্যান্য এজেন্টস",
+   "pt-BR": "Outros agentes",
+   "ru": "Другие агенты",
+   "id": "Agen lain"
   }
  }
 }

@@ -54,9 +54,11 @@ You can also [build it yourself](#build-it-yourself).
 | Click the small island | It opens. With **Settings → General → Open on hover**, resting the pointer on it is enough, and it folds again shortly after the pointer leaves (click inside to keep it open) |
 | Click Mochi | It gets annoyed. Three times in a row and it goes dizzy |
 | Rest the pointer on Mochi for two seconds | Hearts |
-| Right-click Mochi | The wardrobe: rest the pointer on an outfit to try it on, click to keep it. **Auto** dresses him for the season (witch hat in October, Santa hat in December…) |
+| Right-click Mochi | The wardrobe: rest the pointer on an outfit to try it on, click to keep it. **Auto** dresses him for the season (witch hat in October, Santa hat in December…). The row below picks his body shape; the same wardrobe is in Settings |
 | Drag Mochi out of the island | He moves onto your desktop and hangs out there, in his outfit, watching your cursor. Drop him back on the island to bring him home |
 | On the desktop: click / right-click / double-click Mochi | Poke him / the wardrobe / he flies home. Drag him to move him |
+| `Ctrl`+drag Mochi out of the island and drop him | He scans the screen and brings a screenshot back to the chat (**Settings → General → Quick screenshot** skips the scan) |
+| Hold `Shift` while `Ctrl`+dragging him | Pick an area instead: only that part is scanned and captured. `Esc` or a right-click cancels |
 | Drag a file onto the island | Mochi turns into a box, swallows it, then offers to answer questions about it |
 | Click a file in the session ticker | Its diff opens in the island; ↗ opens the file in VS Code, ‹ or `Esc` goes back |
 | `Esc` | Closes the island |
@@ -296,7 +298,9 @@ to work on the island's looks. It also serves `dev/upload-preview.html`, which
 replays the whole file-drop choreography on a loop — the one part of the UI that
 otherwise needs a real drag from Explorer to see — and `dev/recap-preview.html`,
 the weekly recap card and its shared image on a sample week. None of these pages
-ships in the app.
+ships in the app. `dev/markdown-check.html` and `dev/dictation-check.html` are
+self-checks for the chat's GitHub-style Markdown and the mic's voice detection:
+their title turns to PASS or FAIL.
 
 `npm run pack` leaves two files in `windows/release/`, the same names the release
 workflow publishes:

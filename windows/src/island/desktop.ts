@@ -11,7 +11,7 @@ import { desktopDances } from "../core/spotify";
 import {
   DESKTOP_EVENTS, DesktopMochiController, alertActive, type DesktopSnapshot,
 } from "../mochi/desktop-logic";
-import { SeasonCache, parseOutfit } from "../mochi/wardrobe";
+import { MAIN_MOCHI, SeasonCache, lookOf } from "../mochi/wardrobe";
 
 /** Label of the desktop Mochi's window (desktop.rs LABEL). */
 const WINDOW = "mochi";
@@ -165,13 +165,17 @@ export class DesktopLink {
   }
 
   private push() {
+    // The desktop Mochi is the main one: his own look (or every Mochi's, in "all" mode).
+    const look = lookOf(State.settings, MAIN_MOCHI);
     const snapshot: DesktopSnapshot = {
       state: State.effectiveState,
-      outfit: State.wardrobePreview ?? this.seasons.get(parseOutfit(State.settings.mochiOutfit)),
+      // A wardrobe try-on shows here only when it is his wardrobe.
+      outfit: (State.focusMochi === MAIN_MOCHI ? State.wardrobePreview : null) ?? this.seasons.get(look.outfit),
       soundEnabled: State.settings.soundEnabled,
       soundVolume: State.settings.soundVolume,
       paused: State.paused,
-      dancing: desktopDances(State.spotifyPlaying, State.effectiveState),
+      dancing: desktopDances(State.musicPlaying, State.effectiveState),
+      shape: look.shape,
     };
     const key = JSON.stringify(snapshot);
     if (key === this.pushed) return;
