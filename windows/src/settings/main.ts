@@ -315,89 +315,6 @@ function planSection(status: HookStatus): HTMLElement {
   return section;
 }
 
-// ── Claude API section ────────────────────────────────────────────────────────
-
-const MODELS: [string, string][] = [
-  ["claude-opus-5", "Claude Opus 5"],
-  ["claude-sonnet-5", "Claude Sonnet 5"],
-  ["claude-haiku-4-5", "Claude Haiku 4.5"],
-];
-
-function apiSection(hasKey: boolean): HTMLElement {
-  const dot = statusDot(hasKey);
-  const state = h("span", { class: "hint", text: hasKey ? t("Key saved in the {store}.", { store: KEY_STORE }) : t("No key yet — the chat needs one.") });
-
-  const field = h("input", {
-    type: "password",
-    placeholder: hasKey ? `••••••••••••  ${t("(stored)")}` : "sk-ant-...",
-    style: "flex:1 1 auto;min-width:0",
-    autocomplete: "off",
-    spellcheck: "false",
-  }) as HTMLInputElement;
-
-  const saveBtn = h("button", { class: "primary", text: t("Save key") });
-  const clearBtn = h("button", { class: "danger", text: t("Remove") });
-  const feedback = h("div", {});
-
-  async function refresh() {
-    const present = (await Bridge.secretPresent("anthropic-api-key")) ?? false;
-    dot.style.background = present ? "#22c55e" : "#f4505e";
-    state.textContent = present
-      ? t("Key saved in the {store}.", { store: KEY_STORE })
-      : t("No key yet — the chat needs one.");
-    field.placeholder = present ? `••••••••••••  ${t("(stored)")}` : "sk-ant-...";
-    clearBtn.style.display = present ? "" : "none";
-  }
-
-  saveBtn.addEventListener("click", async () => {
-    const value = field.value.trim();
-    if (!value) return;
-    clear(feedback);
-    try {
-      await Bridge.secretSet("anthropic-api-key", value);
-      field.value = "";
-      feedback.append(h("div", { class: "notice ok", text: t("Saved. It never touches disk.") }));
-      await refresh();
-    } catch (err) {
-      feedback.append(h("div", { class: "notice err", text: t("Could not save: {error}", { error: String(err) }) }));
-    }
-  });
-
-  clearBtn.addEventListener("click", async () => {
-    clear(feedback);
-    try {
-      await Bridge.secretClear("anthropic-api-key");
-      feedback.append(h("div", { class: "notice ok", text: t("Key removed.") }));
-      await refresh();
-    } catch (err) {
-      feedback.append(h("div", { class: "notice err", text: t("Could not remove: {error}", { error: String(err) }) }));
-    }
-  });
-
-  const model = h("select", {}) as HTMLSelectElement;
-  for (const [id, label] of MODELS) model.append(h("option", { value: id, text: label }));
-  if (!MODELS.some(([id]) => id === settings.model)) {
-    model.append(h("option", { value: settings.model, text: settings.model }));
-  }
-  model.value = settings.model;
-  model.addEventListener("change", () => {
-    settings.model = model.value;
-    void save();
-  });
-
-  clearBtn.style.display = hasKey ? "" : "none";
-
-  return h(
-    "section",
-    {},
-    h("h2", {}, dot, h("span", { text: "Claude" })),
-    state,
-    h("div", { class: "row" }, h("label", { text: t("API key") }), field, saveBtn, clearBtn),
-    feedback,
-    item(t("Model"), null, model),
-  );
-}
-
 // ── Active pills section ──────────────────────────────────────────────────────
 
 /**
@@ -485,7 +402,7 @@ function activePillsSection(connected: Record<string, boolean>): HTMLElement {
 
 const CHAT_STRINGS = {
   get providersTitle() { return t("Chat providers"); },
-  get providersHint() { return t("Chat with Google AI, OpenAI or OpenRouter instead of Claude: add a key here, then click the model name above the chat box to switch provider and model. Keys stay in the system keychain. These providers get no web search and no tools: they can answer, never act on this computer."); },
+  get providersHint() { return t("Add a key here (Claude Code needs none: it uses your subscription), then click the model name above the chat box to switch provider and model. Keys stay in the system keychain. Only Claude and Claude Code search the web; no provider can act on this computer."); },
   get stored() { return `••••••••  ${t("(stored)")}`; },
   get save() { return t("Save"); },
   get remove() { return t("Remove"); },
@@ -507,23 +424,37 @@ const CHAT_STRINGS = {
 };
 
 interface CloudDef {
-  id: "google" | "openai" | "openrouter";
+  id: "anthropic" | "google" | "openai" | "openrouter";
   name: string;
   placeholder: string;
   where: string;
 }
 
 const CLOUD: CloudDef[] = [
+  { id: "anthropic", name: "Claude", placeholder: "sk-ant-…", where: "console.anthropic.com" },
   { id: "google", name: "Google AI", placeholder: "AIza…", where: "aistudio.google.com" },
   { id: "openai", name: "OpenAI", placeholder: "sk-…", where: "platform.openai.com" },
   { id: "openrouter", name: "OpenRouter", placeholder: "sk-or-…", where: "openrouter.ai/keys" },
 ];
 
+/** Claude's models, under its row (Settings.model). */
+const CLAUDE_MODELS: [string, string][] = [
+  ["claude-opus-5", "Claude Opus 5"],
+  ["claude-sonnet-5", "Claude Sonnet 5"],
+  ["claude-haiku-4-5", "Claude Haiku 4.5"],
+];
+
 function chatProvidersSection(
   present: Record<string, boolean>,
   keyChanged: (key: string, on: boolean) => void,
+  claudeCode: boolean,
 ): HTMLElement {
   const list = h("div", { style: "display:flex;flex-direction:column;gap:8px" });
+  const feedback = h("div", {});
+  const say = (cls: string, text: string) => {
+    clear(feedback);
+    feedback.append(h("div", { class: `notice ${cls}`, text }));
+  };
   for (const def of CLOUD) {
     const p = providerDef(def.id);
     const key = p.key!;
@@ -550,8 +481,10 @@ function chatProvidersSection(
         present[key] = true;
         input.value = "";
         keyChanged(key, true);
-      } catch {
+        say("ok", t("Saved. It never touches disk."));
+      } catch (err) {
         dotEl.style.background = "#f5a524";
+        say("err", t("Could not save: {error}", { error: String(err) }));
         return;
       }
       refresh();
@@ -561,8 +494,10 @@ function chatProvidersSection(
         await Bridge.secretClear(key);
         present[key] = false;
         keyChanged(key, false);
-      } catch {
+        say("ok", t("Key removed."));
+      } catch (err) {
         dotEl.style.background = "#f5a524";
+        say("err", t("Could not remove: {error}", { error: String(err) }));
         return;
       }
       refresh();
@@ -578,6 +513,7 @@ function chatProvidersSection(
       ),
       h("div", { class: "hint row-hint", text: t("Key from {site}", { site: def.where }) }),
     );
+    if (def.id === "anthropic") list.append(claudeModelRow(), claudeCodeRow(claudeCode));
   }
   return h(
     "section",
@@ -585,6 +521,52 @@ function chatProvidersSection(
     h("h2", {}, h("span", { text: CHAT_STRINGS.providersTitle })),
     h("div", { class: "hint", text: CHAT_STRINGS.providersHint }),
     list,
+    feedback,
+  );
+}
+
+function claudeModelRow(): HTMLElement {
+  const model = h("select", {}) as HTMLSelectElement;
+  for (const [id, label] of CLAUDE_MODELS) model.append(h("option", { value: id, text: label }));
+  if (!CLAUDE_MODELS.some(([id]) => id === settings.model)) {
+    model.append(h("option", { value: settings.model, text: settings.model }));
+  }
+  model.value = settings.model;
+  model.addEventListener("change", () => {
+    settings.model = model.value;
+    void save();
+  });
+  return h("div", { class: "row" }, h("label", { text: t("Model") }), model);
+}
+
+/** The user's Claude Code CLI (claude_code.rs): no key, only whether it is here. */
+function claudeCodeRow(found: boolean): HTMLElement {
+  const p = providerDef("claude-code");
+  const use = h("button", {}) as HTMLButtonElement;
+  const draw = () => {
+    const inUse = settings.chatProvider === p.id;
+    use.className = inUse ? "" : "primary";
+    use.textContent = inUse ? CHAT_STRINGS.inUse : CHAT_STRINGS.useInChat;
+    use.disabled = inUse || !found;
+  };
+  use.addEventListener("click", () => {
+    settings.chatProvider = p.id;
+    void save().then(draw);
+  });
+  draw();
+  return h("div", {},
+    h("div", { class: "row" },
+      h("label", {},
+        h("i", { class: "dot", style: `background:${p.accent};margin-right:8px` }),
+        h("span", { text: p.name }),
+      ),
+      h("span", { style: "flex:1 1 auto" }),
+      statusDot(found), use,
+    ),
+    h("div", {
+      class: "hint row-hint",
+      text: found ? t("Uses your Claude Code subscription, no API key.") : t("Claude Code isn't installed."),
+    }),
   );
 }
 
@@ -1348,7 +1330,6 @@ async function render() {
   };
   const agents = await Bridge.agentHooksList();
 
-  const hasKey = (await Bridge.secretPresent("anthropic-api-key")) ?? false;
   const shortcutReport = await Bridge.shortcutsStatus();
 
   const keys = [
@@ -1379,6 +1360,7 @@ async function render() {
     chatKeys[key] = (await Bridge.secretPresent(key)) ?? false;
   }
   const customKey = (await Bridge.secretPresent(CUSTOM_SERVER_KEY)) ?? false;
+  const claudeCode = (await Bridge.claudeCodeFound()) ?? false;
 
   declaredViews.length = 0;
   localRedraw = null;
@@ -1391,7 +1373,7 @@ async function render() {
     ["mochi", t("Mochi"), [general.mochi, wardrobeSection(fork)]],
     ["pills", t("Pills"), [activePillsSection(connected), integrationsSection(present)]],
     ["agents", t("Agents"), [claudeSection(status), agentsSection(agents), planSection(status)]],
-    ["chat", t("Chat"), [apiSection(hasKey), chatProvidersSection(chatKeys, keyChanged), localSection(customKey)]],
+    ["chat", t("Chat"), [chatProvidersSection(chatKeys, keyChanged, claudeCode), localSection(customKey)]],
     ["media", t("Media and voice"), [general.voice, mediaModelsSection(fork)]],
     ["shortcuts", t("Shortcuts"), shortcutsSection(shortcutReport)],
   ]));

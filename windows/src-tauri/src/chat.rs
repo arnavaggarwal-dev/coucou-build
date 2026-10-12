@@ -1,7 +1,8 @@
 // The chat, whoever answers it: the conversation, the system prompt, and which
 // provider a turn goes to. Each provider's own wire format lives in its module:
-// claude.rs (Anthropic), openai_compat.rs (OpenAI, Google AI, OpenRouter) and
-// local_chat.rs (Ollama, LM Studio, any OpenAI-compatible server).
+// claude.rs (Anthropic), claude_code.rs (the user's Claude Code CLI),
+// openai_compat.rs (OpenAI, Google AI, OpenRouter) and local_chat.rs (Ollama,
+// LM Studio, any OpenAI-compatible server).
 //
 // API keys never leave the credential store and file bytes never cross the IPC
 // boundary: the island sends the question and gets the answer's text back.
@@ -13,7 +14,7 @@ use serde_json::{json, Value};
 use tauri::AppHandle;
 
 use crate::settings::Settings;
-use crate::{claude, local_chat, openai_compat, secrets};
+use crate::{claude, claude_code, local_chat, openai_compat, secrets};
 
 pub const ANTHROPIC: &str = "anthropic";
 
@@ -112,6 +113,7 @@ impl Chat {
         let mut c = self.inner.lock().unwrap();
         let epoch = c.epoch + 1;
         *c = Conversation { epoch, ..Default::default() };
+        claude_code::stop();
     }
 
     /// Starts a turn with `provider`, converting the history if another
@@ -269,6 +271,7 @@ pub fn model_for(settings: &Settings, provider: &str) -> String {
         .map(|m| m.trim().to_string())
         .filter(|m| !m.is_empty())
         .or_else(|| openai_compat::provider(provider).map(|p| p.default_model.to_string()))
+        .or_else(|| (provider == claude_code::PROVIDER).then(|| claude_code::DEFAULT_MODEL.to_string()))
         .unwrap_or_default()
 }
 
@@ -324,7 +327,21 @@ pub async fn send(
     }
     let model = model_for(settings, provider);
     let reply = if provider == ANTHROPIC || provider.is_empty() {
-        claude::send(chat, &model, query, context).await
+        // No key, or no credit left on it: Claude Code answers, if it is here.
+        match claude::send(chat, &model, query.clone(), context.clone()).await {
+            Err(err)
+                if (!secrets::present(claude::KEY) || claude_code::out_of_credit(&err))
+                    && claude_code::find().is_some() =>
+            {
+                let model = model_for(settings, claude_code::PROVIDER);
+                let reply = claude_code::send(chat, &model, query, context).await?;
+                let note = crate::i18n::t("Answered by Claude Code: the Claude API key is missing or out of credit.");
+                Ok(ChatReply { notice: Some(note), ..reply })
+            }
+            other => other,
+        }
+    } else if provider == claude_code::PROVIDER {
+        claude_code::send(chat, &model, query, context).await
     } else if let Some(p) = openai_compat::provider(provider) {
         openai_compat::send(chat, p, &model, query, context).await
     } else if let Some(server) = local_chat::server(settings, provider) {
@@ -344,6 +361,9 @@ pub async fn models(settings: &Settings, provider: &str) -> Result<Vec<ModelInfo
     if provider == ANTHROPIC {
         let key = secrets::get(claude::KEY).ok_or_else(no_key)?;
         return claude::models(&key).await;
+    }
+    if provider == claude_code::PROVIDER {
+        return claude_code::models();
     }
     if let Some(p) = openai_compat::provider(provider) {
         let key = secrets::get(p.key).ok_or_else(no_key)?;
@@ -452,6 +472,7 @@ mod tests {
         assert_eq!(model_for(&s, "anthropic"), claude::DEFAULT_MODEL);
         assert_eq!(model_for(&s, "openai"), openai_compat::provider("openai").unwrap().default_model);
         assert_eq!(model_for(&s, "ollama"), "");
+        assert_eq!(model_for(&s, "claude-code"), "sonnet");
         s.chat_models.insert("openai".into(), " gpt-x ".into());
         s.chat_models.insert("ollama".into(), "llama3.2".into());
         s.model = "claude-haiku-4-5".into();

@@ -221,9 +221,10 @@ side (tray, errors) embeds the same two files.
 
 ## Chat and keys
 
-**Settings… → Claude** takes your Anthropic API key. Keys live in the **Windows
-Credential Manager**, never on disk and never in the interface — the island can
-only ask whether a key exists. Same for every integration key.
+**Settings… → Chat → Chat providers** takes your Anthropic API key (first
+row). Keys live in the **Windows Credential Manager**, never on disk and never
+in the interface: the island can only ask whether a key exists. Same for every
+integration key.
 
 The chat also talks to **Google AI (Gemini)**, **OpenAI** and **OpenRouter**:
 add their keys in **Settings… → Chat providers**, then click the model name
@@ -232,6 +233,14 @@ is fetched from the provider only once you pick it and it has a key. Switching
 mid-conversation carries the conversation over as plain text, so nothing in one
 provider's format is ever sent to another. These providers get no web search
 and no tools — they answer, they never act on your PC.
+
+**Claude Code** is a provider too, with no key: each turn runs your own `claude`
+CLI headless (`claude -p`) on your Claude subscription, in an empty temporary
+folder, with web search and web fetch as its only tools, safe mode (no hooks,
+plugins, MCP servers or CLAUDE.md) and no saved session; it is stopped after
+180 s or when the chat is reset. When Claude is picked but has no key, or the
+API says the key is out of credit, the turn is answered through Claude Code
+instead (if it is installed) and the reply says so.
 
 **Local models**: **Settings… → Local models** connects **Ollama** or **LM
 Studio** (leave the address empty for the usual one on this PC; Ollama's

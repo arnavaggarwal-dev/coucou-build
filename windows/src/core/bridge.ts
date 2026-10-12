@@ -201,6 +201,8 @@ export const Bridge = {
   /** Credential name of an endpoint's key (one per provider host). */
   endpointKey: (endpoint: string) => call<string>("endpoint_key", { endpoint }),
   chatReset: () => call<void>("chat_reset"),
+  /** Settings → Chat providers: is the Claude Code CLI on this computer? */
+  claudeCodeFound: () => call<boolean>("claude_code_found"),
   /**
    * The models a provider offers, for the picker in the chat view. Rust asks
    * the provider only when it has a key (or a server address).

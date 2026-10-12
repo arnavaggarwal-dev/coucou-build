@@ -7,6 +7,8 @@ import { N_ } from "../i18n/i18n";
 
 export type ProviderId =
   | "anthropic" | "openai" | "google" | "openrouter"
+  /** The user's Claude Code CLI, on their subscription (src-tauri/src/claude_code.rs). */
+  | "claude-code"
   | "ollama" | "lmstudio" | "custom"
   /** The media models saved in Settings (src-tauri/src/media.rs): "Create". */
   | "media";
@@ -27,6 +29,7 @@ export interface ProviderDef {
 
 export const PROVIDERS: readonly ProviderDef[] = [
   { id: "anthropic", name: "Anthropic", accent: "#E07950", key: "anthropic-api-key", urlField: null, defaultModel: "claude-opus-5", prefer: "opus" },
+  { id: "claude-code", name: "Claude Code", accent: "#C15F3C", key: null, urlField: null, defaultModel: "sonnet", prefer: "sonnet" },
   { id: "google", name: "Google", accent: "#4285F4", key: "google-api-key", urlField: null, defaultModel: "gemini-2.0-flash", prefer: "flash" },
   { id: "openai", name: "OpenAI", accent: "#10A37F", key: "openai-api-key", urlField: null, defaultModel: "gpt-4o", prefer: "mini" },
   { id: "openrouter", name: "OpenRouter", accent: "#6467F2", key: "openrouter-api-key", urlField: null, defaultModel: "openrouter/auto", prefer: null },
