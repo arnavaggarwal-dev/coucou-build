@@ -114,6 +114,7 @@ impl Chat {
         let epoch = c.epoch + 1;
         *c = Conversation { epoch, ..Default::default() };
         claude_code::stop();
+        crate::media::forget_last_image();
     }
 
     /// Starts a turn with `provider`, converting the history if another

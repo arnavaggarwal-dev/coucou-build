@@ -131,10 +131,7 @@ pub fn roam_pointer(app: AppHandle, x: f64, y: f64, phase: String) {
 #[tauri::command]
 pub async fn roam_capture(_app: AppHandle, area: Option<Area>) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        // Private to this user ($XDG_RUNTIME_DIR is 0700, as for the relay
-        // socket): /tmp is shared by every account on Linux.
-        let dir = std::env::var_os("XDG_RUNTIME_DIR").map(std::path::PathBuf::from).unwrap_or_else(std::env::temp_dir);
-        let path = dir.join("coucou-screenshot.png");
+        let path = crate::files::screenshot_path()?;
         capture(&path)?;
         if let Some(area) = area {
             crop_png(&path, area)?;

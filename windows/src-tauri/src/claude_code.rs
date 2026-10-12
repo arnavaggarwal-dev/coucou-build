@@ -131,11 +131,13 @@ pub async fn send(app: &AppHandle, chat: &Chat, model: &str, query: String, cont
     let text = tauri::async_runtime::spawn_blocking(move || run(&exe, &args, &system, &input, shown))
         .await
         .map_err(|e| e.to_string())??;
+    // The history keeps what the CLI was sent, file contents included: each
+    // turn is a fresh process, so later turns only know the file from here.
     chat.commit(
         &turn,
-        json!({ "role": "user", "content": question }),
+        json!({ "role": "user", "content": asked }),
         json!({ "role": "assistant", "content": text }),
-        &question,
+        &asked,
         &text,
     );
     Ok(ChatReply::text(text))

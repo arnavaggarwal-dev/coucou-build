@@ -1685,7 +1685,11 @@ mod tests {
         let ts = include_str!("../../../src/mochi/wardrobe.ts");
         let body = ts.split("export const OUTFIT_SELECTIONS = [").nth(1).unwrap().split("] as const").next().unwrap();
         let ids: Vec<&str> = body.split('"').skip(1).step_by(2).collect();
-        assert_eq!(ids, OUTFIT_CHOICES.to_vec());
+        // The island also has Windows and Linux only outfits (the SVG hats and
+        // the full skins), which the phone doesn't know and never receives:
+        // every phone outfit is the island's, in the island's order.
+        let shared: Vec<&str> = ids.into_iter().filter(|id| OUTFIT_CHOICES.contains(id)).collect();
+        assert_eq!(shared, OUTFIT_CHOICES.to_vec());
     }
     // ── file changes (cap `diffs`) ──────────────────────────────────────────────────
 
