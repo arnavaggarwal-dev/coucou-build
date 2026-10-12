@@ -19,7 +19,7 @@ use crate::i18n::t;
 use crate::platform;
 
 pub const PROVIDER: &str = "claude-code";
-pub const DEFAULT_MODEL: &str = "sonnet";
+pub const DEFAULT_MODEL: &str = "claude-haiku-5-5";
 const TIMEOUT: Duration = Duration::from_secs(180);
 /// All we are willing to read of its answer.
 const MAX_OUTPUT: u64 = 4 * 1024 * 1024;
@@ -157,10 +157,11 @@ fn run(exe: &Path, args: &[String], system: &str, input: &str) -> Result<String,
     parse(&out.map_err(|_| t("Claude Code took too long to answer."))?)
 }
 
-/// The models it offers: the CLI's aliases for the latest of each.
+/// The models it offers: Haiku 5.5 (the default, pinned), then the CLI's
+/// aliases for the latest Sonnet and Opus.
 pub fn models() -> Result<Vec<ModelInfo>, String> {
     find().ok_or_else(not_installed)?;
-    Ok([("sonnet", "Sonnet"), ("opus", "Opus"), ("haiku", "Haiku")]
+    Ok([(DEFAULT_MODEL, "Haiku 5.5"), ("sonnet", "Sonnet"), ("opus", "Opus")]
         .map(|(id, label)| ModelInfo { id: id.into(), label: format!("Claude {label}") })
         .to_vec())
 }

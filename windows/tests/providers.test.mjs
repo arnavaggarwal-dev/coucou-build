@@ -24,7 +24,7 @@ test("Claude's model is the existing setting; the others are kept per provider",
   assert.equal(activeModel(settings()), "claude-opus-5");
   assert.equal(activeModel(settings({ chatProvider: "google" })), "gemini-2.0-flash");
   assert.equal(activeModel(settings({ chatProvider: "ollama" })), "");
-  assert.equal(activeModel(settings({ chatProvider: "claude-code" })), "sonnet");
+  assert.equal(activeModel(settings({ chatProvider: "claude-code" })), "claude-haiku-5-5");
   let s = withModel(settings({ chatProvider: "openai" }), "openai", "gpt-5-mini");
   assert.equal(activeModel(s), "gpt-5-mini");
   assert.equal(s.model, "claude-opus-5");
