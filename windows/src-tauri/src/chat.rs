@@ -334,14 +334,14 @@ pub async fn send(
                     && claude_code::find().is_some() =>
             {
                 let model = model_for(settings, claude_code::PROVIDER);
-                let reply = claude_code::send(chat, &model, query, context).await?;
+                let reply = claude_code::send(app, chat, &model, query, context).await?;
                 let note = crate::i18n::t("Answered by Claude Code: the Claude API key is missing or out of credit.");
                 Ok(ChatReply { notice: Some(note), ..reply })
             }
             other => other,
         }
     } else if provider == claude_code::PROVIDER {
-        claude_code::send(chat, &model, query, context).await
+        claude_code::send(app, chat, &model, query, context).await
     } else if let Some(p) = openai_compat::provider(provider) {
         openai_compat::send(chat, p, &model, query, context).await
     } else if let Some(server) = local_chat::server(settings, provider) {

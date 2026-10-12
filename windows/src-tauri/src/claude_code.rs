@@ -6,7 +6,7 @@
 // is saved as a session. It is also where a Claude turn goes when there is no
 // API key or no credit left on it (chat.rs).
 
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{mpsc, Mutex};
@@ -14,7 +14,10 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
+use tauri::{AppHandle, Emitter};
+
 use crate::chat::{self, Chat, ChatContext, ChatReply, ModelInfo};
+use crate::island::WINDOW_LABEL;
 use crate::i18n::t;
 use crate::platform;
 
@@ -47,7 +50,9 @@ pub fn stop() {
 /// a .cmd install would otherwise pass it through cmd.exe's quoting.
 pub fn args(model: &str, system_file: &Path) -> Vec<String> {
     let mut out: Vec<String> = [
-        "-p", "--output-format", "json", "--no-session-persistence", "--safe-mode",
+        // stream-json + partial messages: the reply streams in as it is written.
+        "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
+        "--no-session-persistence", "--safe-mode",
         "--tools", TOOLS, "--allowedTools", TOOLS, "--system-prompt-file",
     ]
     .map(String::from)
@@ -73,7 +78,14 @@ pub fn prompt(history: &[Value], question: &str) -> String {
     out
 }
 
-/// The answer from `--output-format json`: the last line that is its result.
+/// The text a streamed line adds to the reply, if it is a text delta.
+pub fn delta(line: &str) -> Option<String> {
+    let v: Value = serde_json::from_str(line.trim()).ok()?;
+    let d = &v["event"]["delta"];
+    (v["type"] == "stream_event" && d["type"] == "text_delta").then(|| d["text"].as_str().unwrap_or("").to_string())
+}
+
+/// The answer from the stream: the last line that is its result.
 pub fn parse(out: &str) -> Result<String, String> {
     let result = out
         .lines()
@@ -98,7 +110,7 @@ pub fn out_of_credit(err: &str) -> bool {
 }
 
 /// One chat turn through the CLI.
-pub async fn send(chat: &Chat, model: &str, query: String, context: Option<ChatContext>) -> Result<ChatReply, String> {
+pub async fn send(app: &AppHandle, chat: &Chat, model: &str, query: String, context: Option<ChatContext>) -> Result<ChatReply, String> {
     let exe = find().ok_or_else(not_installed)?;
     let turn = chat.begin(PROVIDER);
     let question = chat::plain_question(turn.first, context.as_ref(), &query);
@@ -112,7 +124,11 @@ pub async fn send(chat: &Chat, model: &str, query: String, context: Option<ChatC
     let input = prompt(&turn.history, &asked);
     let args = args(model, &base_dir().join("system.txt"));
     let system = chat.system_prompt(true);
-    let text = tauri::async_runtime::spawn_blocking(move || run(&exe, &args, &system, &input))
+    let app = app.clone();
+    let shown = move |so_far: &str| {
+        let _ = app.emit_to(WINDOW_LABEL, "chat-delta", so_far);
+    };
+    let text = tauri::async_runtime::spawn_blocking(move || run(&exe, &args, &system, &input, shown))
         .await
         .map_err(|e| e.to_string())??;
     chat.commit(
@@ -129,7 +145,7 @@ fn base_dir() -> PathBuf {
     std::env::temp_dir().join("coucou-claude-code")
 }
 
-fn run(exe: &Path, args: &[String], system: &str, input: &str) -> Result<String, String> {
+fn run(exe: &Path, args: &[String], system: &str, input: &str, shown: impl Fn(&str) + Send + 'static) -> Result<String, String> {
     let work = base_dir().join("work");
     std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
     std::fs::write(base_dir().join("system.txt"), system).map_err(|e| e.to_string())?;
@@ -143,8 +159,16 @@ fn run(exe: &Path, args: &[String], system: &str, input: &str) -> Result<String,
     std::thread::spawn(move || {
         let _ = stdin.write_all(input.as_bytes());
         drop(stdin);
-        let mut out = String::new();
-        let _ = stdout.take(MAX_OUTPUT).read_to_string(&mut out);
+        let (mut out, mut so_far) = (String::new(), String::new());
+        for line in BufReader::new(stdout.take(MAX_OUTPUT)).lines().map_while(Result::ok) {
+            if let Some(text) = delta(&line) {
+                so_far.push_str(&text);
+                shown(&so_far);
+            }
+            out.push_str(&line);
+            out.push('
+');
+        }
         let _ = tx.send(out);
     });
     let out = rx.recv_timeout(TIMEOUT);
@@ -175,13 +199,23 @@ mod tests {
         let a = args("opus", Path::new("/tmp/system.txt"));
         let at = |flag: &str| a.iter().position(|x| x == flag).map(|i| a[i + 1].as_str());
         assert_eq!(a[0], "-p");
-        assert_eq!(at("--output-format"), Some("json"));
+        assert_eq!(at("--output-format"), Some("stream-json"));
+        assert!(a.contains(&"--verbose".into()) && a.contains(&"--include-partial-messages".into()));
         assert_eq!(at("--tools"), Some("WebSearch,WebFetch"));
         assert_eq!(at("--allowedTools"), Some("WebSearch,WebFetch"));
         assert_eq!(at("--system-prompt-file"), Some("/tmp/system.txt"));
         assert_eq!(at("--model"), Some("opus"));
         assert!(a.contains(&"--no-session-persistence".into()) && a.contains(&"--safe-mode".into()));
         assert!(!args("", Path::new("s")).contains(&"--model".into()));
+    }
+
+    #[test]
+    fn only_text_deltas_stream_into_the_reply() {
+        let d = r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hel"}}}"#;
+        assert_eq!(delta(d).as_deref(), Some("Hel"));
+        assert_eq!(delta(r#"{"type":"stream_event","event":{"type":"message_start"}}"#), None);
+        assert_eq!(delta(r#"{"type":"result","result":"x"}"#), None);
+        assert_eq!(delta("[claude-code:unrecognized_model] noise"), None);
     }
 
     #[test]
