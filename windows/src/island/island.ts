@@ -8,15 +8,17 @@ import {
   ROUNDED_CORNER, VIEW_LAYOUTS, botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
   islandSize,
   QUESTION_PICKER_H,
-  type BotEmoteName, type IslandMode, type IslandViewName,
+  type BotEmoteName, type BotStateName, type IslandMode, type IslandViewName,
 } from "../core/layout";
 import { Sound } from "../core/sound";
 import { State } from "../core/state";
 import { SPOTIFY_ID, islandDances } from "../core/spotify";
 import { BotEngine, MOOD_ACTS, hexToRGB } from "../mochi/engine";
 import { Greeting } from "../mochi/greeting";
-import { createMiniBot, pruneMiniBots, setMiniBotsAsleep, syncMiniBotStates, tickMiniBots } from "../mochi/minibots";
-import { SeasonCache, lookOf, mochiKey, setLook } from "../mochi/wardrobe";
+import {
+  createMiniBot, forEachMiniBot, pruneMiniBots, setMiniBotsAsleep, syncMiniBotStates, tickMiniBots,
+} from "../mochi/minibots";
+import { MAIN_MOCHI, SeasonCache, lookOf, mochiKey, setLook } from "../mochi/wardrobe";
 import { UploadCanvas } from "../upload/canvas";
 import { USC, UploadSeq, uploadProgressCurve } from "../upload/sequence";
 import { closePlanCard, openPlanColor, planCardOpen } from "../views/usage";
@@ -26,7 +28,7 @@ import { IslandStateMachine } from "./fsm";
 import { refreshHookPills } from "./integrations";
 import { DesktopLink } from "./desktop";
 import type { ViewCommand } from "./shortcuts";
-import { DRAG_THRESHOLD, agentActive } from "../mochi/desktop-logic";
+import { DRAG_THRESHOLD, agentActive, sessionStarted } from "../mochi/desktop-logic";
 import { Pods } from "./pods";
 
 const BOT_OVERHANG = 40;
@@ -139,16 +141,14 @@ export class Island {
     State.subscribe(() => {
       this.dirty = true;
       this.ensureRunning();
-      // A session changing state is activity; other redraws are not.
-      const sessions = State.tasks.map((t) => `${t.id}:${t.state}`).join();
-      if (sessions !== this.sessions) {
-        this.sessions = sessions;
-        this.noteActivity();
-      }
+      // A chat message sent or a coding session starting wakes them; the
+      // pointer, keys and moods don't.
+      const before = this.sessions;
+      const asked = this.asked;
+      this.sessions = new Map(State.tasks.map((t) => [t.id, t.state]));
+      this.asked = State.chatHistory.filter((m) => m.role === "user").length;
+      if (this.asked > asked || sessionStarted(before, State.tasks)) this.noteActivity();
     });
-    for (const type of ["mousemove", "mousedown", "keydown", "wheel", "mochi-mood"]) {
-      window.addEventListener(type, this.noteActivity, { passive: true });
-    }
     this.noteActivity();
   }
 
@@ -498,8 +498,11 @@ export class Island {
    * wardrobe from any state, or goes back if it is already open.
    */
   wardrobeFromDesktop() {
-    // The desktop Mochi is the main one: his wardrobe, not a coloured Mochi's.
-    if (!(State.mode === "expanded" && State.view === "wardrobe")) State.setFocus(State.mainPillId);
+    // The desktop Mochi's own wardrobe: the main one's, or the dragged-out one's.
+    const who = this.desktop.who;
+    if (!(State.mode === "expanded" && State.view === "wardrobe")) {
+      State.setFocus(who === MAIN_MOCHI ? State.mainPillId : who);
+    }
     this.wardrobeAnywhere();
   }
 
@@ -569,6 +572,28 @@ export class Island {
   emote(name: BotEmoteName) {
     this.engine.triggerEmote(name);
     this.ensureRunning();
+  }
+
+  private emoteHold: number | null = null;
+
+  /**
+   * Settings' emote tester: the island opens for the act and every Mochi on
+   * it plays the mood together, then it closes again by its usual rule.
+   */
+  private playEmote(mood: string) {
+    const act = MOOD_ACTS[mood];
+    if (!act) return;
+    if (State.mode !== "expanded") this.fsm.forceHome();
+    this.hold(true);
+    act(this.engine);
+    // The pills' minis are (re)built by the redraw the opening queued.
+    requestAnimationFrame(() => forEachMiniBot(act));
+    this.ensureRunning();
+    if (this.emoteHold != null) window.clearTimeout(this.emoteHold);
+    this.emoteHold = window.setTimeout(() => {
+      this.emoteHold = null;
+      this.hold(false);
+    }, 2800);
   }
 
   /** Ctrl+P: keep the open island from folding away, or let it fold again. */
@@ -894,13 +919,12 @@ export class Island {
     });
 
     // The chat's reply ends with how the model feels about it: act it out.
-    const actMood = (mood: string) => {
-      MOOD_ACTS[mood]?.(this.engine);
+    window.addEventListener("mochi-mood", (e) => {
+      MOOD_ACTS[String((e as CustomEvent).detail)]?.(this.engine);
       this.ensureRunning();
-    };
-    window.addEventListener("mochi-mood", (e) => actMood(String((e as CustomEvent).detail)));
+    });
     // Settings' "Play an emote" buttons (settings/fork.ts).
-    void onEvent<string>("mochi-mood", actMood);
+    void onEvent<string>("mochi-mood", (mood) => this.playEmote(mood));
 
     // Only keys typed into the island itself land here, never Escape typed in
     // a terminal — so it may fold a waiting card away, as Escape in the notch
@@ -978,8 +1002,8 @@ export class Island {
       this.fsm.mouseLeft();
     }
 
-    // Bot hover → love
-    const overBot = State.mode === "expanded" && State.stateOverride == null && this.isBotHit(x, y);
+    // Bot hover → love (not in his sleep)
+    const overBot = State.mode === "expanded" && State.stateOverride == null && !State.asleep && this.isBotHit(x, y);
     if (overBot && !this.botHovering) this.botHoverIn(x, y);
     if (!overBot && this.botHovering) this.cancelBotHover();
     this.botHovering = overBot;
@@ -1232,7 +1256,7 @@ export class Island {
     // the music pill's card (BotCanvasView, macOS). Asked every frame.
     this.engine.setDancing(islandDances({
       music: State.musicPlaying,
-      state: State.effectiveState,
+      state: this.engine.state,
       mode: State.mode,
       view: State.view,
       focusId: State.focusTask?.id,
@@ -1342,36 +1366,41 @@ export class Island {
       const look = lookOf(State.settings, mochiKey(task, State.mainPillId));
       return { outfit: this.seasons.get(look.outfit), shape: look.shape };
     });
-    this.engine.setState(this.asleep ? "sleeping" : State.effectiveState);
+    this.engine.setState(State.asleep ? "sleeping" : State.effectiveState);
   }
 
   // ── Sleep ───────────────────────────────────────────────────────────────────
 
-  private asleep = false;
   private sleepTimer: number | null = null;
-  private sessions = "";
+  /** Each pill's state at the last redraw, to see a session start. */
+  private sessions = new Map<string, BotStateName>();
+  /** Chat messages sent so far (the chat starts over on a new file). */
+  private asked = 0;
 
-  /** Any sign of life wakes every Mochi and restarts the clock: after 30 s
-   *  plus the island's own close delay of quiet, they all fall asleep. */
+  /** A chat message or a session starting wakes every Mochi and restarts the
+   *  clock: after 30 s plus the island's own close delay, they fall asleep. */
   private noteActivity = () => {
     if (this.sleepTimer != null) window.clearTimeout(this.sleepTimer);
     this.sleepTimer = window.setTimeout(this.fallAsleep, (30 + State.settings.autoCloseInterval) * 1000);
-    if (!this.asleep) return;
-    this.asleep = false;
-    setMiniBotsAsleep(false);
-    this.dirty = true;
-    this.ensureRunning();
+    this.setAsleep(false);
   };
 
   private fallAsleep = () => {
     this.sleepTimer = null;
     // A session still at work keeps them up: look again after another spell.
-    if (State.tasks.some((t) => agentActive(t.state))) return this.noteActivity();
-    this.asleep = true;
-    setMiniBotsAsleep(true);
-    this.dirty = true;
-    this.ensureRunning();
+    // A finished or failed one is done working: it must not.
+    const working = (t: { state: BotStateName }) => agentActive(t.state) && t.state !== "finished" && t.state !== "error";
+    if (State.tasks.some(working)) return this.noteActivity();
+    this.setAsleep(true);
   };
+
+  /** The island's Mochis, the minis and the desktop one (island/desktop.ts). */
+  private setAsleep(on: boolean) {
+    if (State.asleep === on) return;
+    State.asleep = on;
+    setMiniBotsAsleep(on);
+    State.notify();
+  }
 
   /** The closed island's middle: the focused Mochi's current step, else the clock. */
   private syncCompactStatus() {

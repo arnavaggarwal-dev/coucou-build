@@ -137,3 +137,8 @@ export function tickMiniBots(dt: number) {
 }
 
 export const miniBotCount = () => live.size;
+
+/** Runs `fn` on every live mini's engine (Settings' emote tester). */
+export function forEachMiniBot(fn: (engine: BotEngine) => void) {
+  for (const mb of live.values()) fn(mb.engine);
+}

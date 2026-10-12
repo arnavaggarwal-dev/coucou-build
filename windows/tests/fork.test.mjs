@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { calls, emit, sent } from "./tauri.mjs";
-import { alwaysOffer, registerHookHandlers, settledElsewhere } from "../src/island/hooks.ts";
+import { alwaysOffer, promptStep, registerHookHandlers, settledElsewhere } from "../src/island/hooks.ts";
 import { gitPushCommand, pushRepo } from "../src/island/integrations.ts";
 import { isHallucination, wav } from "../src/views/dictation.ts";
 import { DEFAULT_SETTINGS, State } from "../src/core/state.ts";
@@ -207,4 +207,33 @@ test("a recording becomes a 16 kHz mono WAV", async () => {
   // One second at 16 kHz, 16-bit: 32 000 bytes of samples.
   assert.equal(view.getUint32(40, true), 32_000);
   assert.equal(view.getInt16(44, true), Math.trunc(0.5 * 0x7fff));
+});
+
+test("injected prompts show as their summary or command, never as raw tags", () => {
+  const note = '<task-notification>\n<task-id>bq1</task-id>\n<status>completed</status>\n<summary>Agent "Add skins" finished</summary>\n</task-notification>';
+  assert.equal(promptStep(note), 'Agent "Add skins" finished');
+  assert.equal(promptStep("<task-notification><task-id>x</task-id></task-notification>"), null);
+  assert.equal(promptStep("<command-name>/compact</command-name>\n<command-message>compact</command-message>"), "/compact");
+  assert.equal(promptStep("<system-reminder>noise</system-reminder>"), null);
+  assert.equal(promptStep("fix the <b>bug</b> please"), "fix the bug please");
+  assert.equal(promptStep("x".repeat(80)).length, 60);
+});
+
+// ── The desktop Mochi wears the dragged-out Mochi's own look ──────────────────
+
+test("a coloured Mochi dragged out of the island wears its own look on the desktop", async () => {
+  const { DesktopLink } = await import("../src/island/desktop.ts");
+  const { MAIN_MOCHI } = await import("../src/mochi/wardrobe.ts");
+  const pill = State.tasks.find((t) => t.isIntegration && t.id !== State.mainPillId);
+  assert.ok(pill, "a declared coloured pill");
+  State.settings.mochiLooks = { [MAIN_MOCHI]: { outfit: "pumpkin", shape: "" }, [pill.id]: { outfit: "robot", shape: "bean" } };
+  const link = new DesktopLink({ reveal() {}, wardrobeFromDesktop() {}, dizzyFromDesktop() {} });
+  const snapshot = () => sent("plugin:event|emit_to").map((a) => a.payload).at(-1);
+
+  link.push();
+  assert.equal(snapshot().outfit, "pumpkin", "the main Mochi by default");
+  State.focusId = pill.id;
+  link.pickUp(0, 0);
+  link.push();
+  assert.deepEqual([snapshot().outfit, snapshot().shape], ["robot", "bean"]);
 });

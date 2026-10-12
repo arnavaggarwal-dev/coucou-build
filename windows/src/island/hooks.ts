@@ -86,6 +86,25 @@ const DESTINATIONS: Record<string, string> = {
 };
 
 /**
+ * A prompt as the session's step line. Claude Code also submits text the
+ * user never typed (a background task's `<task-notification>`, system
+ * reminders, slash-command echoes): those show as their summary or command,
+ * or not at all, never as raw tags.
+ */
+export function promptStep(raw: string): string | null {
+  const tag = (name: string) => raw.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1]?.trim();
+  if (raw.includes("<task-notification>")) return tag("summary") ?? null;
+  const command = tag("command-name");
+  if (command) return command;
+  const text = raw
+    .replace(/<(system-reminder|local-command-\w+)>[\s\S]*?<\/\1>/g, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text ? text.slice(0, 60) : null;
+}
+
+/**
  * Claude Code's `permission_suggestions` (the terminal's "Yes, and don't ask
  * again…") → the Always button's words, or null when it offered nothing. The
  * rules stay with the relay, which hands back exactly these; this only says
@@ -414,8 +433,8 @@ function handleHook(island: Island, payload: HookPayload) {
       clearFinalLine(agentId);
       State.updateTask(agentId, "thinking");
       // The field is `prompt`; reading `message` meant this step was always blank.
-      const asked = payload.prompt ?? payload.message;
-      if (asked) State.appendStep(agentId, asked.slice(0, 60));
+      const asked = promptStep(payload.prompt ?? payload.message ?? "");
+      if (asked) State.appendStep(agentId, asked);
       surface("overview", false);
       break;
     }

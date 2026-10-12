@@ -28,6 +28,11 @@ for (const mood of Object.keys(MOOD_ACTS)) {
   button.onclick = () => play(mood);
   document.getElementById("moods")!.append(button);
 }
+// The sleep pose: sinks into the floor, and back up on a second click.
+const sleep = document.createElement("button");
+sleep.textContent = "sleeping";
+sleep.onclick = () => bots.forEach((b) => b.engine.setState(b.engine.state === "sleeping" ? "idle" : "sleeping"));
+document.getElementById("moods")!.append(sleep);
 
 const draw = (dt: number) => {
   for (const { engine, ctx, W, H } of bots) {

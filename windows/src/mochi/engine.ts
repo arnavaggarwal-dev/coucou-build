@@ -285,6 +285,8 @@ export class BotEngine {
   tint = 0; morph = 0; hands = 0; blush = 0; es = 1; badgeS = 0;
   /** An emote's colour wash over the body (EMOTE_TINT), 0 to 1. */
   moodTint = 0;
+  /** Melted into the floor by sleep: 0 awake, 1 fully squished (update). */
+  sink = 0;
   private moodCol: RGB = [1, 1, 1];
   /** The emote playing, for the effects drawn every frame (fire, tears, steam...). */
   private fx: { name: BotEmoteName; t0: number; t1: number } | null = null;
@@ -785,7 +787,7 @@ export class BotEngine {
       this.fx !== null ||
       this.cfg.bounces || this.cfg.scans || this.cfg.breathes || this.cfg.zz || this.cfg.sweat ||
       this.isMini ||
-      this.isDancing || this.dancingLevel > 0.001 ||
+      this.isDancing || this.dancingLevel > 0.001 || this.sink > 0.002 ||
       Math.abs(this.tgYaw - this.yaw) > 0.002 ||
       Math.abs(this.tgPitch - this.pitch) > 0.002 ||
       Math.abs(this.tgTilt - this.tilt) > 0.002 ||
@@ -843,7 +845,6 @@ export class BotEngine {
       ty = Math.sin(t * 2.6) * 0.6;
       tp = -0.06;
     }
-    if (this.state === "sleeping") { ty = 0; tp = -0.14; }
     if (this.state === "dizzy") { ty = Math.sin(t * 9) * 0.25; }
 
     // Dancing: the eyes groove to the beat instead of following the cursor.
@@ -866,6 +867,8 @@ export class BotEngine {
       ty = this.miniLookTarget.x * 0.62;
       tp = this.miniLookTarget.y * 0.5;
     }
+    // Asleep, nothing turns his head: not the cursor, the beat or a wander.
+    if (this.state === "sleeping") { ty = 0; tp = -0.14; }
 
     this.tgYaw = ty;
     this.tgPitch = tp;
@@ -880,10 +883,15 @@ export class BotEngine {
     const kGen = 1 - Math.pow(0.0008, dt);
     if (!this.locks.has("oy")) this.oy += (bounce - this.oy) * kGen;
 
+    // Asleep he melts into the floor like a marshmallow, slowly; awake again,
+    // he springs back up quicker.
+    const sleeping = this.state === "sleeping";
+    this.sink += ((sleeping ? 1 : 0) - this.sink) * (1 - Math.pow(sleeping ? 0.55 : 0.02, dt));
     if (this.cfg.breathes) {
+      // Slow, deep breaths (only sleeping breathes).
       const amp = this.isMini ? 0.07 : 0.035;
-      this.tgSy = 1 + Math.sin(t * 1.8) * amp;
-      this.tgSx = 1 - Math.sin(t * 1.8) * amp * 0.57;
+      this.tgSy = 1 + Math.sin(t * 1.2) * amp;
+      this.tgSx = 1 - Math.sin(t * 1.2) * amp * 0.57;
     } else if (this.isMini) {
       this.tgSy = 1 + Math.sin(t * 2.2) * 0.04;
       this.tgSx = 1 - Math.sin(t * 2.2) * 0.02;
@@ -1037,8 +1045,13 @@ export class BotEngine {
     this.r = R;
     // Charged up (hype), the whole body buzzes.
     const buzz = this.fxLevel("hype") * R * 0.025;
+    // Sunk in sleep: shorter and wider, the bottom kept on the floor.
+    const flat = 0.28 * this.sink;
+    const sx = this.sx * (1 + flat * 0.8);
+    const sy = this.sy * (1 - flat);
     const cx = W / 2 + this.ox * R + Math.sin(now() * 97) * buzz;
-    const cy = H / 2 + this.particleOverhang / 2 + this.oy * R + R * 0.06 + Math.sin(now() * 71) * buzz * 0.5;
+    const cy = H / 2 + this.particleOverhang / 2 + this.oy * R + R * 0.06 + Math.sin(now() * 71) * buzz * 0.5 +
+      ry * this.sy * flat;
 
     // With an outfit on, a roll turns the whole character — hat included — as
     // one piece instead of rolling the eyes over the body (BotCanvasView, macOS).
@@ -1054,7 +1067,7 @@ export class BotEngine {
     x.save();
     x.translate(cx, cy);
     if (this.tilt !== 0) x.rotate(this.tilt);
-    x.scale(this.sx, this.sy);
+    x.scale(sx, sy);
 
     const body = this.bodyPath(R, shape);
     const eyes = this.eyePoses(rx, ry, shape).filter((e) => e.vis > 0.04);
