@@ -155,6 +155,22 @@ const MOODS: [&str; 13] = [
     "hype", "confused", "sleepy",
 ];
 
+/// When to pick each mood, for the prompt. Mochi reacts to how the user
+/// treats it, not only to the topic: rudeness and insults make it angry.
+const MOOD_GUIDE: &str = "happy (a friendly, pleased answer: the default for ordinary replies), \
+sad (bad news, a loss, or you couldn't help), \
+shy (the user compliments or flirts with you), \
+angry (the user insults you, swears at you, uses slurs or is rude or hostile to you, or something unfair or infuriating happened), \
+thankful (the user thanks you or does something kind for you), \
+welcome (a greeting, hello or goodbye), \
+scared (something alarming, dangerous or creepy), \
+celebration (something was finished, won or achieved), \
+surprised (something unexpected or astonishing), \
+proud (you solved something hard or gave a great answer), \
+hype (big excitement, a huge win, or the user wants to get pumped up), \
+confused (the message is unclear, nonsense or you had to guess), \
+sleepy (late at night, or the user says they're tired or bored)";
+
 /// Mochi's instructions. Greets the user by their first name when the account
 /// has one worth using (identity.rs), goes by the name given in Settings, and
 /// only claims web search where the provider runs it (Claude).
@@ -175,8 +191,7 @@ fn system_prompt_for(first_name: Option<&str>, web_search: bool, mochi: &str) ->
 Respond in the user's language. Be thorough and complete — use as much detail as the task requires. \
 Use light Markdown when it helps: short paragraphs, bullet lists, **bold** on the few key words to notice, `inline code` and fenced code blocks. Small tables are fine; avoid big headings: the chat window is small. \
 End every reply with one last line holding only a JSON object with how you feel about it, for your avatar to act out, \
-exactly like {{\"mood\":\"happy\"}}. Pick one of: {}. Write nothing after that line and never mention it.",
-        MOODS.join(", ")
+exactly like {{\"mood\":\"happy\"}}. Pick the one that fits best: {MOOD_GUIDE}. Write nothing after that line and never mention it."
     )
 }
 

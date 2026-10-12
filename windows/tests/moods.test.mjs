@@ -35,3 +35,9 @@ test("every chat mood is acted out, and draws at any size", () => {
     }
   }
 });
+
+test("the prompt tells the model when to pick every mood, and insults make Mochi angry", () => {
+  const guide = rust.match(/const MOOD_GUIDE: &str = "([\s\S]*?)";/)[1];
+  for (const mood of moods) assert.ok(guide.includes(`${mood} (`), `${mood} has no description`);
+  assert.match(guide, /angry \([^)]*insults you/);
+});
