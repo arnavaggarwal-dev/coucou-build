@@ -166,8 +166,7 @@ fn run(exe: &Path, args: &[String], system: &str, input: &str, shown: impl Fn(&s
                 shown(&so_far);
             }
             out.push_str(&line);
-            out.push('
-');
+            out.push('\n');
         }
         let _ = tx.send(out);
     });
