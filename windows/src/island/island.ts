@@ -2,7 +2,7 @@
 // Mirrors IslandRootView.swift + IslandWindowController.swift.
 
 import { Tracked, Spring, clamp } from "../core/anim";
-import { Bridge, IS_TAURI, onDragDrop } from "../core/bridge";
+import { Bridge, IS_TAURI, onDragDrop, onEvent } from "../core/bridge";
 import {
   EXPANDED_CORNER, EXPANDED_W, NOTCH_H, NOTCH_W, PANEL_H, PANEL_W,
   ROUNDED_CORNER, VIEW_LAYOUTS, botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
@@ -884,10 +884,13 @@ export class Island {
     });
 
     // The chat's reply ends with how the model feels about it: act it out.
-    window.addEventListener("mochi-mood", (e) => {
-      MOOD_ACTS[String((e as CustomEvent).detail)]?.(this.engine);
+    const actMood = (mood: string) => {
+      MOOD_ACTS[mood]?.(this.engine);
       this.ensureRunning();
-    });
+    };
+    window.addEventListener("mochi-mood", (e) => actMood(String((e as CustomEvent).detail)));
+    // Settings' "Play an emote" buttons (settings/fork.ts).
+    void onEvent<string>("mochi-mood", actMood);
 
     // Only keys typed into the island itself land here, never Escape typed in
     // a terminal — so it may fold a waiting card away, as Escape in the notch

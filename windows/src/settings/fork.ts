@@ -12,6 +12,8 @@ import { pillDefinition, sanitizeDeclared } from "../core/pills";
 import { pillColor } from "../core/pill-colors";
 import { wardrobePicker } from "../views/wardrobe";
 import { h, clear } from "../views/dom";
+import { MOOD_ACTS } from "../mochi/engine";
+import { emit } from "@tauri-apps/api/event";
 import { disclosure, segmented, statusDot } from "./parts";
 import { N_, t } from "../i18n/i18n";
 
@@ -363,5 +365,12 @@ export function wardrobeSection(ctx: ForkContext): HTMLElement {
     mochis,
     h("div", { class: "hint" }, picker.note),
     picker.el,
+    // Plays each chat mood on the island's Mochi, to try them out.
+    h("h3", { text: t("Play an emote") }),
+    h("div", { class: "row", style: "flex-wrap:wrap" }, ...Object.keys(MOOD_ACTS).map((mood) => {
+      const button = h("button", { text: mood });
+      button.addEventListener("click", () => void emit("mochi-mood", mood));
+      return button;
+    })),
   );
 }
