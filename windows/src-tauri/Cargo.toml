@@ -42,6 +42,12 @@ tokio-tungstenite = { version = "0.26", default-features = false, features = ["h
 webpki-roots = "1"
 # Stream/Sink traits for the WebSocket (already in the tree through tokio-tungstenite and tauri).
 futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+# All already in the tree through Tauri: generated media arrives as base64,
+# Download needs the real Downloads folder (it can be moved on Windows), and
+# Linux crops a picked screenshot area out of the desktop tool's PNG.
+base64 = "0.22"
+dirs = "7"
+png = "0.17"
 
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
@@ -51,6 +57,11 @@ webview2-com = "0.39"
 wv2_core = { package = "windows-core", version = "0.62" }
 windows = { version = "0.61", features = [
   "Win32_Foundation",
+  # The screenshot roam: GDI grabs the screen, WIC scales and writes the PNG.
+  "Win32_Graphics_Gdi",
+  "Win32_Graphics_Imaging",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
   "Win32_Security",
   "Win32_Security_Authorization",
   # "Open terminal": the relay's process tree leads to the session's window.
@@ -61,6 +72,14 @@ windows = { version = "0.61", features = [
   "Win32_System_Threading",
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_WindowsAndMessaging",
+  # What's playing, for the Music pill (system media transport controls).
+  "Foundation",
+  "Foundation_Collections",
+  "Media",
+  "Media_Control",
+  # The cover's colour, for Melody: read the thumbnail and let Windows decode it.
+  "Graphics_Imaging",
+  "Storage_Streams",
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]

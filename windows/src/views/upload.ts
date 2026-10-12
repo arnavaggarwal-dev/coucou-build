@@ -28,6 +28,14 @@ function dashedFrame(): SVGSVGElement {
   return el;
 }
 
+/** The focused Mochi's colour and name: a red Mochi eats with a red bar. */
+function eater(card: HTMLElement): string {
+  const focus = State.focusTask;
+  const coloured = focus?.isIntegration && focus.id !== State.mainPillId;
+  card.style.setProperty("--tint", coloured ? focus.color : "");
+  return coloured ? State.pillLabel(focus) : State.mochiName;
+}
+
 export function buildUpload(): ViewHost {
   const frame = dashedFrame();
   const title = h("div", { class: "drop-title", text: tl("Drop your files here") });
@@ -47,6 +55,7 @@ export function buildUpload(): ViewHost {
   return {
     el,
     sync() {
+      eater(card);
       card.classList.toggle("over", State.fileDragOver);
     },
   };
@@ -68,17 +77,20 @@ export function buildUploading(): ViewHost {
   return {
     el,
     sync() {
+      const who = eater(card);
       const done = State.uploadProgress >= 0.999;
       const pct = Math.round(State.uploadProgress * 100);
+      // Nothing leaves the computer here: the file is copied into Coucou's
+      // inbox, ready for the chat.
       label.textContent = done
-        ? `✓  ${State.droppedFile?.name ?? t("File")}`
-        : t("Uploading {name}", { name: State.droppedFile?.name ?? t("file") });
+        ? `✓  ${State.droppedFile?.name ?? t("File")} is ready to ask about`
+        : `${who} is reading ${State.droppedFile?.name ?? t("file")}`;
       label.classList.toggle("done", done);
       percent.textContent = done ? "" : `${pct} %`;
       const w = State.uploadProgress * 526;
       fill.style.width = `${w}px`;
       glow.style.transform = `translateX(${Math.max(0, w - 14)}px)`;
-      glow.style.opacity = State.uploadProgress > 0.01 ? "1" : "0";
+      glow.style.opacity = State.uploadProgress > 0.01 ? "0.45" : "0";
       card.classList.toggle("done", done);
     },
   };

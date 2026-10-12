@@ -54,9 +54,11 @@ You can also [build it yourself](#build-it-yourself).
 | Click the small island | It opens. With **Settings → General → Open on hover**, resting the pointer on it is enough, and it folds again shortly after the pointer leaves (click inside to keep it open) |
 | Click Mochi | It gets annoyed. Three times in a row and it goes dizzy |
 | Rest the pointer on Mochi for two seconds | Hearts |
-| Right-click Mochi | The wardrobe: rest the pointer on an outfit to try it on, click to keep it. **Auto** dresses him for the season (witch hat in October, Santa hat in December…) |
+| Right-click Mochi | The wardrobe: rest the pointer on an outfit to try it on, click to keep it. **Auto** dresses him for the season (witch hat in October, Santa hat in December…). The row below picks his body shape; the same wardrobe is in Settings |
 | Drag Mochi out of the island | He moves onto your desktop and hangs out there, in his outfit, watching your cursor. Drop him back on the island to bring him home |
 | On the desktop: click / right-click / double-click Mochi | Poke him / the wardrobe / he flies home. Drag him to move him |
+| `Ctrl`+drag Mochi out of the island and drop him | He scans the screen and brings a screenshot back to the chat (**Settings → General → Quick screenshot** skips the scan) |
+| Hold `Shift` while `Ctrl`+dragging him | Pick an area instead: only that part is scanned and captured. `Esc` or a right-click cancels |
 | Drag a file onto the island | Mochi turns into a box, swallows it, then offers to answer questions about it |
 | Click a file in the session ticker | Its diff opens in the island; ↗ opens the file in VS Code, ‹ or `Esc` goes back |
 | `Esc` | Closes the island |
@@ -115,8 +117,9 @@ runs in to the front.
 
 When Mochi lives on the desktop, he flies back to the island with a permission
 request or a question and returns to his spot once you have answered; he does a
-little jump when a task finishes, and dozes off when nothing has happened for
-two minutes and your cursor is elsewhere — asleep, he costs nothing: no cursor
+little jump when a task finishes, and dozes off with the island's Mochis (after
+30 s plus the auto-close delay without a chat message or a session
+starting; the pointer doesn't wake them). Asleep, he costs nothing: no cursor
 polling, a few frames a second. He remembers his spot between launches; if it
 was on a display that is no longer connected, he stays in the island.
 
@@ -221,9 +224,10 @@ side (tray, errors) embeds the same two files.
 
 ## Chat and keys
 
-**Settings… → Claude** takes your Anthropic API key. Keys live in the **Windows
-Credential Manager**, never on disk and never in the interface — the island can
-only ask whether a key exists. Same for every integration key.
+**Settings… → Chat → Chat providers** takes your Anthropic API key (first
+row). Keys live in the **Windows Credential Manager**, never on disk and never
+in the interface: the island can only ask whether a key exists. Same for every
+integration key.
 
 The chat also talks to **Google AI (Gemini)**, **OpenAI** and **OpenRouter**:
 add their keys in **Settings… → Chat providers**, then click the model name
@@ -232,6 +236,14 @@ is fetched from the provider only once you pick it and it has a key. Switching
 mid-conversation carries the conversation over as plain text, so nothing in one
 provider's format is ever sent to another. These providers get no web search
 and no tools — they answer, they never act on your PC.
+
+**Claude Code** is a provider too, with no key: each turn runs your own `claude`
+CLI headless (`claude -p`) on your Claude subscription, in an empty temporary
+folder, with web search and web fetch as its only tools, safe mode (no hooks,
+plugins, MCP servers or CLAUDE.md) and no saved session; it is stopped after
+180 s or when the chat is reset. When Claude is picked but has no key, or the
+API says the key is out of credit, the turn is answered through Claude Code
+instead (if it is installed) and the reply says so.
 
 **Local models**: **Settings… → Local models** connects **Ollama** or **LM
 Studio** (leave the address empty for the usual one on this PC; Ollama's
@@ -298,7 +310,9 @@ to work on the island's looks. It also serves `dev/upload-preview.html`, which
 replays the whole file-drop choreography on a loop — the one part of the UI that
 otherwise needs a real drag from Explorer to see — and `dev/recap-preview.html`,
 the weekly recap card and its shared image on a sample week. None of these pages
-ships in the app.
+ships in the app. `dev/markdown-check.html` and `dev/dictation-check.html` are
+self-checks for the chat's GitHub-style Markdown and the mic's voice detection:
+their title turns to PASS or FAIL.
 
 `npm run pack` leaves two files in `windows/release/`, the same names the release
 workflow publishes:
@@ -478,11 +492,10 @@ own window.
   the island's text right to left but not its layout: Mochi and the pills keep
   their sides.
 - Mochi on the desktop dances only on Linux, to Spotify; on Windows there is
-  no music integration to dance to yet. While he dances he stays awake (the
-  Mac lets him doze off mid-dance). Dropping him on a window doesn't attach it
-  to the chat. While he
-  sleeps, the transparent square around him (120 px) takes the first mouse
-  move, which wakes him and gives the rest back to the desktop.
+  no music integration to dance to yet. Dropping him on a window doesn't
+  attach it to the chat. While he sleeps, the transparent square around him
+  (120 px) takes the first mouse move, which turns the cursor poll back on
+  (without waking him) and gives the rest back to the desktop.
 
 ## Linux
 
@@ -524,8 +537,7 @@ What changes on Linux:
   shape, so the compositor sends every other click to what is underneath.
 - **Mochi's eyes** follow the pointer only while it is over the island: Wayland
   gives no app the cursor position anywhere else. On the desktop, likewise,
-  they follow it only while it is over him, and "the cursor is far away" (so
-  he may fall asleep) means it hasn't been over him for a few seconds.
+  they follow it only while it is over him.
 - **Mochi on the desktop** is a layer-shell surface on the island's display
   (KDE Plasma, COSMIC, Hyprland, Sway…), placed with margins and dragged within
   that display; on X11 it is an ordinary always-on-top window that goes

@@ -265,6 +265,17 @@
    "ru": "Некорректный ответ API: {error}",
    "id": "Respons API tidak valid: {error}"
   },
+  "Bean": {
+   "zh-Hans": "豆子",
+   "hi": "बीन",
+   "es": "Judía",
+   "ar": "حبة فاصولياء",
+   "fr": "Haricot",
+   "bn": "শিম",
+   "pt-BR": "Feijão",
+   "ru": "Фасолинка",
+   "id": "Kacang"
+  },
   "Beanie": {
    "zh-Hans": "毛线帽",
    "hi": "ऊनी टोपी",
@@ -275,6 +286,17 @@
    "pt-BR": "Gorro",
    "ru": "Шапка",
    "id": "Kupluk"
+  },
+  "Bee": {
+   "zh-Hans": "蜜蜂",
+   "hi": "मधुमक्खी",
+   "es": "Abeja",
+   "ar": "نحلة",
+   "fr": "Abeille",
+   "bn": "মৌমাছি",
+   "pt-BR": "Abelha",
+   "ru": "Пчела",
+   "id": "Lebah"
   },
   "Bow": {
    "zh-Hans": "蝴蝶结",
@@ -353,6 +375,17 @@
    "ru": "Не удаётся прочитать {path}: {error}",
    "id": "Tidak dapat membaca {path}: {error}"
   },
+  "Cat ears": {
+   "zh-Hans": "猫耳朵",
+   "hi": "बिल्ली के कान",
+   "es": "Orejas de gato",
+   "ar": "آذان قطة",
+   "fr": "Oreilles de chat",
+   "bn": "বিড়ালের কান",
+   "pt-BR": "Orelhas de gato",
+   "ru": "Кошачьи ушки",
+   "id": "Telinga kucing"
+  },
   "Chat providers": {
    "zh-Hans": "聊天服务商",
    "hi": "चैट प्रदाता",
@@ -364,16 +397,16 @@
    "ru": "Провайдеры чата",
    "id": "Penyedia obrolan"
   },
-  "Chat with Google AI, OpenAI or OpenRouter instead of Claude: add a key here, then click the model name above the chat box to switch provider and model. Keys stay in the system keychain. These providers get no web search and no tools: they can answer, never act on this computer.": {
-   "zh-Hans": "用 Google AI、OpenAI 或 OpenRouter 代替 Claude 聊天：在这里添加密钥，然后点击聊天框上方的模型名称来切换服务商和模型。密钥保存在系统钥匙串中。这些服务商没有网页搜索和工具：它们只能回答，绝不会在这台电脑上执行操作。",
-   "hi": "Claude की जगह Google AI, OpenAI या OpenRouter से चैट करें: यहाँ एक कुंजी जोड़ें, फिर प्रदाता और मॉडल बदलने के लिए चैट बॉक्स के ऊपर मॉडल के नाम पर क्लिक करें। कुंजियाँ सिस्टम कीचेन में रहती हैं। इन प्रदाताओं को न वेब सर्च मिलता है न टूल: वे जवाब दे सकते हैं, इस कंप्यूटर पर कभी कुछ नहीं करते।",
-   "es": "Chatea con Google AI, OpenAI u OpenRouter en lugar de Claude: añade una clave aquí y luego haz clic en el nombre del modelo encima del cuadro de chat para cambiar de proveedor y modelo. Las claves se quedan en el llavero del sistema. Estos proveedores no tienen búsqueda web ni herramientas: pueden responder, nunca actuar en este equipo.",
-   "ar": "دردش مع Google AI أو OpenAI أو OpenRouter بدلًا من Claude: أضف مفتاحًا هنا، ثم انقر على اسم النموذج فوق مربع الدردشة لتبديل المزوّد والنموذج. تبقى المفاتيح في سلسلة مفاتيح النظام. لا يحصل هؤلاء المزوّدون على بحث الويب ولا على الأدوات: يمكنهم الإجابة، ولا يتصرفون أبدًا على هذا الحاسوب.",
-   "fr": "Discute avec Google AI, OpenAI ou OpenRouter à la place de Claude : ajoute une clé ici, puis clique sur le nom du modèle au-dessus de la zone de chat pour changer de fournisseur et de modèle. Les clés restent dans le trousseau du système. Ces fournisseurs n'ont ni recherche web ni outils : ils peuvent répondre, jamais agir sur cet ordinateur.",
-   "bn": "Claude-এর বদলে Google AI, OpenAI বা OpenRouter-এর সঙ্গে চ্যাট করুন: এখানে একটি কী যোগ করুন, তারপর প্রদানকারী ও মডেল বদলাতে চ্যাট বক্সের উপরে মডেলের নামে ক্লিক করুন। কী সিস্টেম কীচেইনে থাকে। এই প্রদানকারীরা ওয়েব সার্চ বা টুল পায় না: তারা উত্তর দিতে পারে, এই কম্পিউটারে কখনো কিছু করে না।",
-   "pt-BR": "Converse com Google AI, OpenAI ou OpenRouter em vez do Claude: adicione uma chave aqui e clique no nome do modelo acima da caixa de chat para trocar de provedor e de modelo. As chaves ficam no chaveiro do sistema. Esses provedores não têm busca na web nem ferramentas: podem responder, nunca agir neste computador.",
-   "ru": "Общайтесь с Google AI, OpenAI или OpenRouter вместо Claude: добавьте ключ здесь, затем нажмите на название модели над полем чата, чтобы сменить провайдера и модель. Ключи хранятся в системной связке ключей. У этих провайдеров нет веб-поиска и инструментов: они могут отвечать, но никогда не действуют на этом компьютере.",
-   "id": "Mengobrol dengan Google AI, OpenAI, atau OpenRouter sebagai ganti Claude: tambahkan kunci di sini, lalu klik nama model di atas kotak obrolan untuk mengganti penyedia dan model. Kunci tetap di keychain sistem. Penyedia ini tidak punya pencarian web maupun alat: mereka bisa menjawab, tidak pernah bertindak di komputer ini."
+  "Add a key here (Claude Code needs none: it uses your subscription), then click the model name above the chat box to switch provider and model. Keys stay in the system keychain. Only Claude and Claude Code search the web; no provider can act on this computer.": {
+   "zh-Hans": "在这里添加密钥（Claude Code 不需要：它使用你的订阅），然后点击聊天框上方的模型名称来切换服务商和模型。密钥保存在系统钥匙串中。只有 Claude 和 Claude Code 会搜索网页；任何服务商都无法在这台电脑上执行操作。",
+   "hi": "यहाँ एक कुंजी जोड़ें (Claude Code को इसकी ज़रूरत नहीं: वह आपकी सदस्यता का उपयोग करता है), फिर प्रदाता और मॉडल बदलने के लिए चैट बॉक्स के ऊपर मॉडल के नाम पर क्लिक करें। कुंजियाँ सिस्टम कीचेन में रहती हैं। केवल Claude और Claude Code वेब सर्च करते हैं; कोई भी प्रदाता इस कंप्यूटर पर कुछ नहीं कर सकता।",
+   "es": "Añade una clave aquí (Claude Code no necesita ninguna: usa tu suscripción) y luego haz clic en el nombre del modelo encima del cuadro de chat para cambiar de proveedor y modelo. Las claves se quedan en el llavero del sistema. Solo Claude y Claude Code buscan en la web; ningún proveedor puede actuar en este equipo.",
+   "ar": "أضف مفتاحًا هنا (لا يحتاج Claude Code إلى مفتاح: فهو يستخدم اشتراكك)، ثم انقر على اسم النموذج فوق مربع الدردشة لتبديل المزوّد والنموذج. تبقى المفاتيح في سلسلة مفاتيح النظام. وحدهما Claude وClaude Code يبحثان في الويب؛ ولا يستطيع أي مزوّد التصرف على هذا الحاسوب.",
+   "fr": "Ajoute une clé ici (Claude Code n'en a pas besoin : il utilise ton abonnement), puis clique sur le nom du modèle au-dessus de la zone de chat pour changer de fournisseur et de modèle. Les clés restent dans le trousseau du système. Seuls Claude et Claude Code cherchent sur le web ; aucun fournisseur ne peut agir sur cet ordinateur.",
+   "bn": "এখানে একটি কী যোগ করুন (Claude Code-এর কোনো কী লাগে না: এটি আপনার সাবস্ক্রিপশন ব্যবহার করে), তারপর প্রদানকারী ও মডেল বদলাতে চ্যাট বক্সের উপরে মডেলের নামে ক্লিক করুন। কী সিস্টেম কীচেইনে থাকে। শুধু Claude ও Claude Code ওয়েবে সার্চ করে; কোনো প্রদানকারী এই কম্পিউটারে কিছু করতে পারে না।",
+   "pt-BR": "Adicione uma chave aqui (o Claude Code não precisa: ele usa sua assinatura) e clique no nome do modelo acima da caixa de chat para trocar de provedor e de modelo. As chaves ficam no chaveiro do sistema. Só o Claude e o Claude Code pesquisam na web; nenhum provedor pode agir neste computador.",
+   "ru": "Добавьте ключ здесь (для Claude Code ключ не нужен: он работает по вашей подписке), затем нажмите на название модели над полем чата, чтобы сменить провайдера и модель. Ключи хранятся в системной связке ключей. Искать в интернете умеют только Claude и Claude Code; ни один провайдер не может ничего делать на этом компьютере.",
+   "id": "Tambahkan kunci di sini (Claude Code tidak perlu: ia memakai langganan Anda), lalu klik nama model di atas kotak obrolan untuk mengganti penyedia dan model. Kunci tetap di keychain sistem. Hanya Claude dan Claude Code yang mencari di web; tidak ada penyedia yang bisa bertindak di komputer ini."
   },
   "Chat with a model you run yourself: Ollama or LM Studio (leave the address empty for the usual one on this computer), or any server that speaks the OpenAI API, such as vLLM or llama.cpp. Once connected, pick it above the chat box.": {
    "zh-Hans": "与你自己运行的模型聊天：Ollama 或 LM Studio（地址留空即使用本机的默认地址），或任何兼容 OpenAI API 的服务器，例如 vLLM 或 llama.cpp。连接后，在聊天框上方选择它。",
@@ -385,6 +418,17 @@
    "pt-BR": "Converse com um modelo que você mesmo executa: Ollama ou LM Studio (deixe o endereço vazio para usar o padrão neste computador), ou qualquer servidor compatível com a API da OpenAI, como vLLM ou llama.cpp. Depois de conectado, escolha-o acima da caixa de chat.",
    "ru": "Общайтесь с моделью, которую запускаете сами: Ollama или LM Studio (оставьте адрес пустым, чтобы использовать обычный адрес на этом компьютере) или любой сервер с API OpenAI, например vLLM или llama.cpp. После подключения выберите его над полем чата.",
    "id": "Mengobrol dengan model yang Anda jalankan sendiri: Ollama atau LM Studio (kosongkan alamat untuk alamat biasa di komputer ini), atau server apa pun yang mendukung API OpenAI, seperti vLLM atau llama.cpp. Setelah terhubung, pilih di atas kotak obrolan."
+  },
+  "Chef hat": {
+   "zh-Hans": "厨师帽",
+   "hi": "शेफ़ की टोपी",
+   "es": "Gorro de chef",
+   "ar": "قبعة الطاهي",
+   "fr": "Toque de chef",
+   "bn": "শেফের টুপি",
+   "pt-BR": "Chapéu de chef",
+   "ru": "Поварской колпак",
+   "id": "Topi koki"
   },
   "Choose a model": {
    "zh-Hans": "选择模型",
@@ -650,6 +694,17 @@
    "ru": "Только счётчики и названия проектов — никогда команды, файлы или промпты. Хранится на этом компьютере 12 недель.",
    "id": "Hanya hitungan dan nama proyek — tidak pernah perintah, file, atau prompt. Disimpan di komputer ini selama 12 minggu."
   },
+  "Cowboy hat": {
+   "zh-Hans": "牛仔帽",
+   "hi": "काउबॉय टोपी",
+   "es": "Sombrero vaquero",
+   "ar": "قبعة رعاة البقر",
+   "fr": "Chapeau de cowboy",
+   "bn": "কাউবয় টুপি",
+   "pt-BR": "Chapéu de caubói",
+   "ru": "Ковбойская шляпа",
+   "id": "Topi koboi"
+  },
   "Crown": {
    "zh-Hans": "王冠",
    "hi": "मुकुट",
@@ -671,6 +726,17 @@
    "pt-BR": "Servidor personalizado",
    "ru": "Свой сервер",
    "id": "Server kustom"
+  },
+  "Daifuku": {
+   "zh-Hans": "大福",
+   "hi": "दाइफ़ुकु",
+   "es": "Daifuku",
+   "ar": "دايفوكو",
+   "fr": "Daifuku",
+   "bn": "দাইফুকু",
+   "pt-BR": "Daifuku",
+   "ru": "Дайфуку",
+   "id": "Daifuku"
   },
   "Default branch CI": {
    "zh-Hans": "默认分支 CI",
@@ -870,6 +936,17 @@
    "ru": "Пятница",
    "id": "Jumat"
   },
+  "Frog": {
+   "zh-Hans": "青蛙",
+   "hi": "मेंढक",
+   "es": "Rana",
+   "ar": "ضفدع",
+   "fr": "Grenouille",
+   "bn": "ব্যাঙ",
+   "pt-BR": "Sapo",
+   "ru": "Лягушка",
+   "id": "Katak"
+  },
   "From anywhere": {
    "zh-Hans": "全局",
    "hi": "कहीं से भी",
@@ -880,6 +957,17 @@
    "pt-BR": "De qualquer lugar",
    "ru": "Отовсюду",
    "id": "Dari mana saja"
+  },
+  "Ghost": {
+   "zh-Hans": "幽灵",
+   "hi": "भूत",
+   "es": "Fantasma",
+   "ar": "شبح",
+   "fr": "Fantôme",
+   "bn": "ভূত",
+   "pt-BR": "Fantasma",
+   "ru": "Привидение",
+   "id": "Hantu"
   },
   "Go to pill 1 to 9": {
    "zh-Hans": "前往第 1 至 9 个标签",
@@ -902,6 +990,17 @@
    "pt-BR": "Ir para a permissão ou pergunta pendente",
    "ru": "Перейти к ожидающему разрешению или вопросу",
    "id": "Buka izin atau pertanyaan yang menunggu"
+  },
+  "Graduation cap": {
+   "zh-Hans": "学位帽",
+   "hi": "दीक्षांत टोपी",
+   "es": "Birrete",
+   "ar": "قبعة التخرج",
+   "fr": "Chapeau de diplômé",
+   "bn": "স্নাতক টুপি",
+   "pt-BR": "Capelo",
+   "ru": "Выпускная шапочка",
+   "id": "Topi wisuda"
   },
   "Hide project names": {
    "zh-Hans": "隐藏项目名称",
@@ -1145,16 +1244,16 @@
    "ru": "Ключ удалён.",
    "id": "Kunci dihapus."
   },
-  "Key saved in the {store}.": {
-   "zh-Hans": "密钥已保存在 {store} 中。",
-   "hi": "कुंजी {store} में सहेजी गई है।",
-   "es": "Clave guardada en {store}.",
-   "ar": "حُفظ المفتاح في {store}.",
-   "fr": "Clé enregistrée dans {store}.",
-   "bn": "কী {store}-এ সংরক্ষিত।",
-   "pt-BR": "Chave salva em {store}.",
-   "ru": "Ключ сохранён в {store}.",
-   "id": "Kunci tersimpan di {store}."
+  "Ladybug": {
+   "zh-Hans": "瓢虫",
+   "hi": "लेडीबग",
+   "es": "Mariquita",
+   "ar": "دعسوقة",
+   "fr": "Coccinelle",
+   "bn": "লেডিবাগ",
+   "pt-BR": "Joaninha",
+   "ru": "Божья коровка",
+   "id": "Kepik"
   },
   "Later — keep it waiting": {
    "zh-Hans": "稍后 — 让它等着",
@@ -1221,6 +1320,17 @@
    "pt-BR": "Reunião",
    "ru": "Встреча",
    "id": "Rapat"
+  },
+  "Mochi": {
+   "zh-Hans": "Mochi",
+   "hi": "Mochi",
+   "es": "Mochi",
+   "ar": "Mochi",
+   "fr": "Mochi",
+   "bn": "Mochi",
+   "pt-BR": "Mochi",
+   "ru": "Mochi",
+   "id": "Mochi"
   },
   "Monday": {
    "zh-Hans": "星期一",
@@ -1365,17 +1475,6 @@
    "ru": "Файла пока нет — нечего сохранять.",
    "id": "Belum ada file — tidak ada yang perlu dicadangkan."
   },
-  "No key yet — the chat needs one.": {
-   "zh-Hans": "还没有密钥 — 聊天需要一个。",
-   "hi": "अभी कोई कुंजी नहीं — चैट को एक चाहिए।",
-   "es": "Aún no hay clave — el chat necesita una.",
-   "ar": "لا يوجد مفتاح بعد — تحتاج الدردشة إلى مفتاح.",
-   "fr": "Pas encore de clé — le chat en a besoin.",
-   "bn": "এখনো কোনো কী নেই — চ্যাটের একটি লাগবে।",
-   "pt-BR": "Ainda não há chave — o chat precisa de uma.",
-   "ru": "Ключа пока нет — он нужен для чата.",
-   "id": "Belum ada kunci — obrolan membutuhkannya."
-  },
   "No models yet. Download one in {name} first.": {
    "zh-Hans": "还没有模型。请先在 {name} 中下载一个。",
    "hi": "अभी कोई मॉडल नहीं। पहले {name} में एक डाउनलोड करें।",
@@ -1485,6 +1584,17 @@
    "pt-BR": "Nada sai do seu PC: o servidor roda neste computador.",
    "ru": "Ничего не покидает ваш ПК: сервер работает на этом компьютере.",
    "id": "Tidak ada yang keluar dari PC Anda: server berjalan di komputer ini."
+  },
+  "Onigiri": {
+   "zh-Hans": "饭团",
+   "hi": "ओनिगिरी",
+   "es": "Onigiri",
+   "ar": "أونيغيري",
+   "fr": "Onigiri",
+   "bn": "ওনিগিরি",
+   "pt-BR": "Onigiri",
+   "ru": "Онигири",
+   "id": "Onigiri"
   },
   "Only files dropped on the island can be added.": {
    "zh-Hans": "只能添加拖放到岛上的文件。",
@@ -1607,6 +1717,17 @@
    "ru": "PDF",
    "id": "PDF"
   },
+  "Panda": {
+   "zh-Hans": "熊猫",
+   "hi": "पांडा",
+   "es": "Panda",
+   "ar": "باندا",
+   "fr": "Panda",
+   "bn": "পান্ডা",
+   "pt-BR": "Panda",
+   "ru": "Панда",
+   "id": "Panda"
+  },
   "Party hat": {
    "zh-Hans": "派对帽",
    "hi": "पार्टी टोपी",
@@ -1661,6 +1782,17 @@
    "pt-BR": "Escolha até {max} abas para mostrar ao lado do Mochi — {used}/{max} em uso. As chaves ficam em {store}, nunca no disco.",
    "ru": "Выберите до {max} вкладок рядом с Mochi — занято {used}/{max}. Ключи хранятся в {store}, никогда на диске.",
    "id": "Pilih hingga {max} tab untuk ditampilkan di samping Mochi — {used}/{max} terpakai. Kunci disimpan di {store}, tidak pernah di disk."
+  },
+  "Play an emote": {
+   "zh-Hans": "播放表情",
+   "hi": "इमोट चलाएँ",
+   "es": "Reproducir un emote",
+   "ar": "تشغيل تعبير",
+   "fr": "Jouer une émote",
+   "bn": "ইমোট চালান",
+   "pt-BR": "Tocar um emote",
+   "ru": "Показать эмоцию",
+   "id": "Putar emote"
   },
   "Press keys…": {
    "zh-Hans": "请按键…",
@@ -1849,6 +1981,17 @@
    "ru": "Результат",
    "id": "Hasil"
   },
+  "Robot": {
+   "zh-Hans": "机器人",
+   "hi": "रोबोट",
+   "es": "Robot",
+   "ar": "روبوت",
+   "fr": "Robot",
+   "bn": "রোবট",
+   "pt-BR": "Robô",
+   "ru": "Робот",
+   "id": "Robot"
+  },
   "Round glasses": {
    "zh-Hans": "圆框眼镜",
    "hi": "गोल चश्मा",
@@ -1892,17 +2035,6 @@
    "pt-BR": "Salvar imagem",
    "ru": "Сохранить изображение",
    "id": "Simpan gambar"
-  },
-  "Save key": {
-   "zh-Hans": "保存密钥",
-   "hi": "कुंजी सहेजें",
-   "es": "Guardar clave",
-   "ar": "حفظ المفتاح",
-   "fr": "Enregistrer la clé",
-   "bn": "কী সংরক্ষণ করুন",
-   "pt-BR": "Salvar chave",
-   "ru": "Сохранить ключ",
-   "id": "Simpan kunci"
   },
   "Saved as {name}": {
    "zh-Hans": "已保存为 {name}",
@@ -2113,6 +2245,17 @@
    "ru": "Показывает использование тарифа Codex (недельный лимит и оставшиеся бесплатные сбросы) в заголовке острова. Coucou спрашивает Codex CLI (codex app-server), когда видна вкладка; ничего не устанавливается. В Codex нужно войти через ChatGPT.",
    "id": "Menampilkan pemakaian paket Codex Anda (batas mingguan dan sisa reset gratis) di header pulau. Coucou menanyakan Codex CLI (codex app-server) saat tab tampil; tidak ada yang dipasang. Codex harus masuk dengan ChatGPT."
   },
+  "Sprout": {
+   "zh-Hans": "嫩芽",
+   "hi": "अंकुर",
+   "es": "Brote",
+   "ar": "برعم",
+   "fr": "Pousse",
+   "bn": "অঙ্কুর",
+   "pt-BR": "Broto",
+   "ru": "Росток",
+   "id": "Tunas"
+  },
   "Start a new Antigravity conversation to pick the hooks up.": {
    "zh-Hans": "开启新的 Antigravity 对话即可启用 hooks。",
    "hi": "hooks लागू करने के लिए Antigravity में नई बातचीत शुरू करें।",
@@ -2167,6 +2310,28 @@
    "pt-BR": "Começar um novo chat",
    "ru": "Начать новый чат",
    "id": "Mulai obrolan baru"
+  },
+  "Straw hat": {
+   "zh-Hans": "草帽",
+   "hi": "पुआल की टोपी",
+   "es": "Sombrero de paja",
+   "ar": "قبعة من القش",
+   "fr": "Chapeau de paille",
+   "bn": "খড়ের টুপি",
+   "pt-BR": "Chapéu de palha",
+   "ru": "Соломенная шляпа",
+   "id": "Topi jerami"
+  },
+  "Strawberry": {
+   "zh-Hans": "草莓",
+   "hi": "स्ट्रॉबेरी",
+   "es": "Fresa",
+   "ar": "فراولة",
+   "fr": "Fraise",
+   "bn": "স্ট্রবেরি",
+   "pt-BR": "Morango",
+   "ru": "Клубника",
+   "id": "Stroberi"
   },
   "Sunday": {
    "zh-Hans": "星期日",
@@ -2421,6 +2586,17 @@
    "ru": "Четверг",
    "id": "Kamis"
   },
+  "Tofu": {
+   "zh-Hans": "豆腐",
+   "hi": "टोफ़ू",
+   "es": "Tofu",
+   "ar": "توفو",
+   "fr": "Tofu",
+   "bn": "টোফু",
+   "pt-BR": "Tofu",
+   "ru": "Тофу",
+   "id": "Tahu"
+  },
   "Token": {
    "zh-Hans": "令牌",
    "hi": "टोकन",
@@ -2453,6 +2629,17 @@
    "pt-BR": "Falta ao token o escopo necessário",
    "ru": "У токена нет нужной области доступа",
    "id": "Token tidak memiliki cakupan yang diperlukan"
+  },
+  "Top hat": {
+   "zh-Hans": "高礼帽",
+   "hi": "टॉप हैट",
+   "es": "Sombrero de copa",
+   "ar": "قبعة عالية",
+   "fr": "Haut-de-forme",
+   "bn": "টপ হ্যাট",
+   "pt-BR": "Cartola",
+   "ru": "Цилиндр",
+   "id": "Topi tinggi"
   },
   "Total stars": {
    "zh-Hans": "星标总数",
@@ -3899,6 +4086,160 @@
    "pt-BR": "Este código também inclui a chave de acesso e a chave de ponta a ponta do relay {host}. «Parear de novo» cria uma chave e uma sala novas.",
    "ru": "Этот код также содержит ключ доступа и сквозной ключ для ретранслятора {host}. «Сопрячь заново» создаёт новый ключ и новую комнату.",
    "id": "Kode ini juga memuat kunci akses dan kunci ujung ke ujung untuk relay {host}. «Sandingkan ulang» membuat kunci dan ruang baru."
+  },
+  "Each Mochi has its own outfit": {
+   "zh-Hans": "每个 Mochi 都有自己的装扮",
+   "hi": "हर Mochi का अपना पहनावा",
+   "es": "Cada Mochi tiene su propio atuendo",
+   "ar": "لكل Mochi زيّه الخاص",
+   "fr": "Chaque Mochi a sa propre tenue",
+   "bn": "প্রতিটি Mochi-র নিজস্ব পোশাক",
+   "pt-BR": "Cada Mochi tem sua própria roupa",
+   "ru": "У каждого Mochi свой наряд",
+   "id": "Setiap Mochi punya pakaiannya sendiri"
+  },
+  "Same outfit for every Mochi": {
+   "zh-Hans": "所有 Mochi 使用同一套装扮",
+   "hi": "हर Mochi के लिए एक ही पहनावा",
+   "es": "El mismo atuendo para todos los Mochi",
+   "ar": "الزي نفسه لكل Mochi",
+   "fr": "La même tenue pour tous les Mochi",
+   "bn": "সব Mochi-র জন্য একই পোশাক",
+   "pt-BR": "A mesma roupa para todos os Mochi",
+   "ru": "Один наряд для всех Mochi",
+   "id": "Pakaian yang sama untuk semua Mochi"
+  },
+  "Island": {
+   "zh-Hans": "岛",
+   "hi": "आइलैंड",
+   "es": "Isla",
+   "ar": "الشريط",
+   "fr": "Île",
+   "bn": "আইল্যান্ড",
+   "pt-BR": "Ilha",
+   "ru": "Остров",
+   "id": "Pulau"
+  },
+  "Media and voice": {
+   "zh-Hans": "媒体与语音",
+   "hi": "मीडिया और आवाज़",
+   "es": "Multimedia y voz",
+   "ar": "الوسائط والصوت",
+   "fr": "Médias et voix",
+   "bn": "মিডিয়া ও ভয়েস",
+   "pt-BR": "Mídia e voz",
+   "ru": "Медиа и голос",
+   "id": "Media dan suara"
+  },
+  "Search settings": {
+   "zh-Hans": "搜索设置",
+   "hi": "सेटिंग्स खोजें",
+   "es": "Buscar en la configuración",
+   "ar": "ابحث في الإعدادات",
+   "fr": "Rechercher dans les réglages",
+   "bn": "সেটিংস খুঁজুন",
+   "pt-BR": "Buscar nas configurações",
+   "ru": "Поиск настроек",
+   "id": "Cari pengaturan"
+  },
+  "Advanced": {
+   "zh-Hans": "高级",
+   "hi": "उन्नत",
+   "es": "Avanzado",
+   "ar": "متقدم",
+   "fr": "Avancé",
+   "bn": "উন্নত",
+   "pt-BR": "Avançado",
+   "ru": "Дополнительно",
+   "id": "Lanjutan"
+  },
+  "No settings match “{query}”.": {
+   "zh-Hans": "没有与“{query}”匹配的设置。",
+   "hi": "“{query}” से मेल खाती कोई सेटिंग नहीं है।",
+   "es": "Ninguna opción coincide con “{query}”.",
+   "ar": "لا توجد إعدادات تطابق “{query}”.",
+   "fr": "Aucun réglage ne correspond à « {query} ».",
+   "bn": "“{query}”-এর সঙ্গে মেলে এমন কোনো সেটিং নেই।",
+   "pt-BR": "Nenhuma configuração corresponde a “{query}”.",
+   "ru": "Нет настроек по запросу «{query}».",
+   "id": "Tidak ada pengaturan yang cocok dengan “{query}”."
+  },
+  "Pills": {
+   "zh-Hans": "标签页",
+   "hi": "टैब",
+   "es": "Pestañas",
+   "ar": "التبويبات",
+   "fr": "Onglets",
+   "bn": "ট্যাব",
+   "pt-BR": "Abas",
+   "ru": "Вкладки",
+   "id": "Tab"
+  },
+  "Other agents": {
+   "zh-Hans": "其他代理",
+   "hi": "अन्य एजेंट्स",
+   "es": "Otros agentes",
+   "ar": "وكلاء آخرون",
+   "fr": "Autres agents",
+   "bn": "অন্যান্য এজেন্টস",
+   "pt-BR": "Outros agentes",
+   "ru": "Другие агенты",
+   "id": "Agen lain"
+  },
+  "Uses your Claude Code subscription, no API key.": {
+   "zh-Hans": "使用你的 Claude Code 订阅，无需 API 密钥。",
+   "hi": "आपकी Claude Code सदस्यता का उपयोग करता है, कोई API कुंजी नहीं।",
+   "es": "Usa tu suscripción de Claude Code, sin clave de API.",
+   "ar": "يستخدم اشتراكك في Claude Code، بلا مفتاح API.",
+   "fr": "Utilise ton abonnement Claude Code, sans clé d'API.",
+   "bn": "আপনার Claude Code সাবস্ক্রিপশন ব্যবহার করে, কোনো API কী লাগে না।",
+   "pt-BR": "Usa sua assinatura do Claude Code, sem chave de API.",
+   "ru": "Работает по вашей подписке Claude Code, без API-ключа.",
+   "id": "Memakai langganan Claude Code Anda, tanpa kunci API."
+  },
+  "Claude Code isn't installed.": {
+   "zh-Hans": "未安装 Claude Code。",
+   "hi": "Claude Code इंस्टॉल नहीं है।",
+   "es": "Claude Code no está instalado.",
+   "ar": "Claude Code غير مثبّت.",
+   "fr": "Claude Code n'est pas installé.",
+   "bn": "Claude Code ইনস্টল করা নেই।",
+   "pt-BR": "O Claude Code não está instalado.",
+   "ru": "Claude Code не установлен.",
+   "id": "Claude Code belum terpasang."
+  },
+  "Claude Code took too long to answer.": {
+   "zh-Hans": "Claude Code 回答超时。",
+   "hi": "Claude Code ने जवाब देने में बहुत देर लगाई।",
+   "es": "Claude Code tardó demasiado en responder.",
+   "ar": "استغرق Claude Code وقتًا طويلًا للرد.",
+   "fr": "Claude Code a mis trop de temps à répondre.",
+   "bn": "Claude Code উত্তর দিতে খুব বেশি সময় নিয়েছে।",
+   "pt-BR": "O Claude Code demorou demais para responder.",
+   "ru": "Claude Code слишком долго не отвечал.",
+   "id": "Claude Code terlalu lama menjawab."
+  },
+  "Answered by Claude Code: the Claude API key is missing or out of credit.": {
+   "zh-Hans": "由 Claude Code 回答：Claude API 密钥缺失或额度已用完。",
+   "hi": "Claude Code ने जवाब दिया: Claude API कुंजी नहीं है या उसका क्रेडिट खत्म हो गया है।",
+   "es": "Respondido por Claude Code: falta la clave de la API de Claude o no le queda crédito.",
+   "ar": "أجاب Claude Code: مفتاح Claude API مفقود أو نفد رصيده.",
+   "fr": "Réponse de Claude Code : la clé de l'API Claude est absente ou n'a plus de crédit.",
+   "bn": "Claude Code উত্তর দিয়েছে: Claude API কী নেই বা এর ক্রেডিট শেষ।",
+   "pt-BR": "Respondido pelo Claude Code: a chave da API do Claude está ausente ou sem crédito.",
+   "ru": "Ответил Claude Code: ключа Claude API нет или на нём закончились средства.",
+   "id": "Dijawab oleh Claude Code: kunci API Claude tidak ada atau kreditnya habis."
+  },
+  "Save key": {
+   "zh-Hans": "保存密钥",
+   "hi": "कुंजी सहेजें",
+   "es": "Guardar clave",
+   "ar": "حفظ المفتاح",
+   "fr": "Enregistrer la clé",
+   "bn": "কী সংরক্ষণ করুন",
+   "pt-BR": "Salvar chave",
+   "ru": "Сохранить ключ",
+   "id": "Simpan kunci"
   }
  }
 }

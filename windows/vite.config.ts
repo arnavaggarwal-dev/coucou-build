@@ -59,11 +59,15 @@ export default defineConfig({
     minify: "esbuild",
     sourcemap: false,
     emptyOutDir: true,
+    // KaTeX fonts must stay files: the CSP has no font-src data:.
+    assetsInlineLimit: (file: string) => (/\.(woff2?|ttf)$/.test(file) ? false : undefined),
     rollupOptions: {
       input: {
         island: resolve(__dirname, "index.html"),
         settings: resolve(__dirname, "settings.html"),
         mochi: resolve(__dirname, "mochi.html"),
+        // The screen overlay: screenshot roam, AirPods flight, media preview.
+        roam: resolve(__dirname, "roam.html"),
       },
     },
   },

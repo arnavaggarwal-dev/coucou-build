@@ -57,6 +57,20 @@ pub struct Settings {
     /// season), "none" or an outfit id — the Mac's raw values. The island reads
     /// anything it doesn't know as "auto", so the value is stored as it comes.
     pub mochi_outfit: String,
+    /// Mochi's body shape, picked in the wardrobe too: "" (the classic Mochi)
+    /// or a shape id of src/mochi/wardrobe.ts. Kept as it comes, like
+    /// `mochi_outfit`: the island reads an id it doesn't know as "".
+    pub mochi_shape: String,
+    /// "perMochi": each Mochi wears its own look (`mochi_looks`). "all": every
+    /// Mochi wears `mochi_outfit` and `mochi_shape`. Anything else reads as
+    /// "perMochi" (src/mochi/wardrobe.ts parseWardrobeMode).
+    pub wardrobe_mode: String,
+    /// Each Mochi's own look, by Mochi: `MAIN_MOCHI` or a coloured Mochi's pill
+    /// id. Sent to the webviews with the rest, but kept in wardrobe-looks.json,
+    /// never in settings.json (see `load_looks`). Both sets are kept whatever
+    /// the mode, so switching back finds every Mochi dressed as before.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub mochi_looks: BTreeMap<String, MochiLook>,
     /// A colour of the user's own for a pill's Mochi, by pill ID ("#RRGGBB"),
     /// picked in Settings → Active pills. Empty means the catalog's colours.
     /// Kept as it comes, like `mochi_outfit`: src/core/pill-colors.ts reads
@@ -97,6 +111,173 @@ pub struct Settings {
     pub phone_relay: bool,
     /// The relay's address (`wss://…`), empty until the user enters it. Not a secret. Owned by Rust.
     pub phone_relay_url: String,
+    /// The main Mochi's name: the chat's persona. Empty = "Mochi".
+    pub mochi_name: String,
+    /// Names of the coloured Mochis, by pill id. Missing or empty = the
+    /// default pun name (src/core/state.ts DEFAULT_MOCHI_NAMES).
+    pub mochi_names: BTreeMap<String, String>,
+    /// The island never fades to the invisible wake strip: at rest it stays
+    /// compact at the top of the screen.
+    pub keep_visible: bool,
+    /// Screenshot roam without the scan cutscene: a quick sweep, then capture.
+    pub quick_scan: bool,
+    /// Hands-free chat: after a spoken question, the mic listens again once
+    /// the reply is in.
+    pub keep_mic_on: bool,
+    /// Models that make something other than chat text: images, video,
+    /// speech, 3D, or speech-to-text for the chat's mic (media.rs). Each has
+    /// its endpoint; its key is per host (secrets::endpoint_key).
+    pub models: Vec<ModelEntry>,
+    /// The previous fork's own wardrobe: each Mochi's body shape and SVG hat,
+    /// by pill id. Read from an older settings.json, never written again: see
+    /// `migrate_wardrobe`.
+    #[serde(skip_serializing)]
+    pub wardrobe: BTreeMap<String, Look>,
+    /// "provider/model" of chat models that refused an image: next time the
+    /// island asks before sending one.
+    pub text_only_models: Vec<String>,
+    /// Read from a settings.json written by the previous fork (the model in
+    /// use then); never written again. See `migrate_models`.
+    #[serde(skip_serializing)]
+    pub active_model: String,
+}
+
+/// One Mochi's own look: an outfit as `mochi_outfit` stores it, a shape as
+/// `mochi_shape` does. Kept as they come; the island reads what it doesn't know
+/// as "auto" and the classic body.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MochiLook {
+    pub outfit: String,
+    pub shape: String,
+}
+
+/// The main Mochi's key in `mochi_looks` (the coloured ones use their pill id).
+pub const MAIN_MOCHI: &str = "main";
+
+/// One Mochi's look in the previous fork's wardrobe. Empty strings mean the
+/// default shape / no hat.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Look {
+    pub shape: String,
+    pub head: String,
+}
+
+/// A model on an OpenAI-compatible endpoint (or, from older settings, a
+/// Claude model) that makes something.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ModelEntry {
+    pub id: String,
+    pub label: String,
+    /// "openai" for any OpenAI-compatible endpoint; "claude" only in old files.
+    pub kind: String,
+    pub model: String,
+    pub endpoint: String,
+    /// Whether it reads images (old chat entries only).
+    pub vision: Option<bool>,
+    /// What it makes: "image", "video", "audio", "3d" or "stt". Empty or
+    /// "text" is a chat model from the previous fork, moved to upstream's
+    /// providers by `migrate_models`.
+    pub output: String,
+    /// Text-to-speech voice, for "audio" models. Empty = the model's default.
+    pub voice: String,
+    /// Output detail for "3d" models that offer it (TRELLIS 2: "low",
+    /// "medium" or "high"). Empty = the model's default.
+    pub detail: String,
+}
+
+impl ModelEntry {
+    pub fn is_text(&self) -> bool {
+        matches!(self.output.as_str(), "" | "text")
+    }
+}
+
+/// The previous fork kept every chat model in `models`. Chat now goes through
+/// upstream's providers, so the chat entries move there once: the one in use
+/// becomes the Claude model or the Custom server (when none is set yet), and
+/// they leave the list, which keeps only what makes media or transcribes.
+/// Returns the endpoint whose stored key should be bound to the Custom server
+/// (lib.rs does that: it touches the credential store).
+pub fn migrate_models(s: &mut Settings) -> Option<String> {
+    if !s.models.iter().any(ModelEntry::is_text) {
+        return None;
+    }
+    let active = s.models.iter().find(|m| m.id == s.active_model).cloned();
+    let mut bind = None;
+    if let Some(m) = active.as_ref().filter(|m| m.is_text()) {
+        if m.kind == "claude" {
+            s.model = m.model.clone();
+            s.chat_provider = crate::chat::ANTHROPIC.into();
+        } else if s.custom_url.trim().is_empty() && !m.endpoint.trim().is_empty() {
+            s.custom_url = m.endpoint.trim().to_string();
+            s.chat_models.insert("custom".into(), m.model.trim().to_string());
+            s.chat_provider = "custom".into();
+            bind = Some(s.custom_url.clone());
+        }
+    } else if let Some(m) = active.as_ref().filter(|m| !m.is_text()) {
+        // A media model was in use: the chat's "Create" chip picks it.
+        s.chat_provider = crate::media::PROVIDER.into();
+        s.chat_models.insert(crate::media::PROVIDER.into(), m.id.clone());
+    }
+    s.models.retain(|m| !m.is_text());
+    s.active_model.clear();
+    bind
+}
+
+/// The previous fork's SVG hats, as the outfits that now draw them (the five
+/// upstream already had, and the seven that moved into its wardrobe).
+const HAT_OUTFITS: [(&str, &str); 12] = [
+    ("beanie", "beanie"),
+    ("bunny", "bunnyEars"),
+    ("crown", "crown"),
+    ("partyhat", "partyHat"),
+    ("witch", "witchHat"),
+    ("catears", "catEars"),
+    ("chef", "chefHat"),
+    ("cowboy", "cowboyHat"),
+    ("gradcap", "gradCap"),
+    ("sprout", "sprout"),
+    ("strawhat", "strawHat"),
+    ("tophat", "topHat"),
+];
+
+/// The previous fork dressed each Mochi from its own wardrobe; the looks move
+/// to upstream's, once. A hat becomes the outfit (a hat used to win over the
+/// outfit). The main Mochi's look (then under "integration_claude") becomes
+/// both the look every Mochi wears in "all" mode and his own; each coloured
+/// Mochi keeps its own, undressed when it had no hat (pills wore no outfit).
+/// Returns whether anything was read.
+pub fn migrate_wardrobe(s: &mut Settings) -> bool {
+    if s.wardrobe.is_empty() {
+        return false;
+    }
+    let hat = |head: &str| HAT_OUTFITS.iter().find(|(h, _)| *h == head).map(|(_, o)| (*o).to_string());
+    for (id, look) in std::mem::take(&mut s.wardrobe) {
+        if id == "integration_claude" {
+            if let Some(outfit) = hat(&look.head) {
+                s.mochi_outfit = outfit;
+            }
+            if !look.shape.is_empty() && s.mochi_shape.is_empty() {
+                s.mochi_shape = look.shape;
+            }
+            let main = MochiLook { outfit: s.mochi_outfit.clone(), shape: s.mochi_shape.clone() };
+            s.mochi_looks.insert(MAIN_MOCHI.into(), main);
+        } else {
+            let outfit = hat(&look.head).unwrap_or_else(|| "none".into());
+            s.mochi_looks.insert(id, MochiLook { outfit, shape: look.shape });
+        }
+    }
+    true
+}
+
+/// Gives the main Mochi the look every Mochi shares, unless he has his own.
+/// Returns true: the caller saves, so wardrobe-looks.json exists from then on.
+fn seed_looks(s: &mut Settings) -> bool {
+    let main = MochiLook { outfit: s.mochi_outfit.clone(), shape: s.mochi_shape.clone() };
+    s.mochi_looks.entry(MAIN_MOCHI.into()).or_insert(main);
+    true
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -149,6 +330,9 @@ impl Default for Settings {
             custom_url: String::new(),
             shortcuts: Default::default(),
             mochi_outfit: "auto".into(),
+            mochi_shape: String::new(),
+            wardrobe_mode: "perMochi".into(),
+            mochi_looks: BTreeMap::new(),
             pill_colors: BTreeMap::new(),
             language: String::new(),
             desktop_mochi: DesktopMochiPref::default(),
@@ -162,6 +346,15 @@ impl Default for Settings {
             phone_services: Vec::new(),
             phone_relay: false,
             phone_relay_url: String::new(),
+            mochi_name: String::new(),
+            mochi_names: BTreeMap::new(),
+            keep_visible: false,
+            quick_scan: false,
+            keep_mic_on: false,
+            models: Vec::new(),
+            wardrobe: BTreeMap::new(),
+            text_only_models: Vec::new(),
+            active_model: String::new(),
         }
     }
 }
@@ -176,14 +369,71 @@ fn settings_path() -> PathBuf {
     config_dir().join("settings.json")
 }
 
+/// Each Mochi's own look (`Settings::mochi_looks`), apart from the settings
+/// the window shows.
+fn looks_path() -> PathBuf {
+    config_dir().join("wardrobe-looks.json")
+}
+
 pub fn load() -> Settings {
     load_from(&settings_path())
 }
 
+/// Writes settings.json, then wardrobe-looks.json: the first error is
+/// returned, but one file failing never keeps the other from being written.
 pub fn save(settings: &Settings) -> std::io::Result<()> {
     let dir = config_dir();
     crate::platform::ensure_private_dir(&dir)?;
-    save_to(&settings_path(), settings)
+    let main = save_to(&settings_path(), settings);
+    let looks = save_looks_to(&looks_path(), &settings.mochi_looks);
+    main.and(looks)
+}
+
+/// Reads each Mochi's own look from wardrobe-looks.json into `s`, at launch.
+/// Returns true when there was none to read: the first launch with it, or a
+/// file that could not be read or used (copied aside first, or else left as
+/// it is: no save writes over it, see `protect`). The main Mochi then starts
+/// in the look settings.json gives every Mochi, and the caller saves.
+pub fn load_looks(s: &mut Settings) -> bool {
+    load_looks_from(&looks_path(), s)
+}
+
+fn load_looks_from(path: &Path, s: &mut Settings) -> bool {
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(err) if err.kind() == ErrorKind::NotFound => return seed_looks(s),
+        Err(err) => {
+            note(format!("can't read {}: {err}", path.display()));
+            protect(path);
+            return seed_looks(s);
+        }
+    };
+    let text = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(&bytes);
+    if text.iter().all(u8::is_ascii_whitespace) {
+        return seed_looks(s);
+    }
+    match serde_json::from_slice::<BTreeMap<String, MochiLook>>(text) {
+        Ok(looks) => {
+            s.mochi_looks = looks;
+            false
+        }
+        Err(_) => {
+            match set_aside(path, "corrupt", &bytes) {
+                Ok(copy) => note(format!("{} is not usable, kept as {}", path.display(), copy.display())),
+                Err(err) => {
+                    note(format!("{} is not usable and could not be copied: {err}", path.display()));
+                    protect(path);
+                }
+            }
+            seed_looks(s)
+        }
+    }
+}
+
+/// `save`'s half for wardrobe-looks.json: the map as it is, by Mochi.
+fn save_looks_to(path: &Path, looks: &BTreeMap<String, MochiLook>) -> std::io::Result<()> {
+    let json = serde_json::to_vec_pretty(looks).map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))?;
+    write_atomic(path, &json)
 }
 
 /// How many copies `set_aside` can make within one second before it gives up.
@@ -382,11 +632,21 @@ fn write_whole(file: &mut std::fs::File, bytes: &[u8]) -> std::io::Result<()> {
     file.sync_all()
 }
 
-/// `save`, for the file at `path`, whose directory already exists.
+/// `save`, for the file at `path`, whose directory already exists. Each
+/// Mochi's look is left out: it goes to wardrobe-looks.json.
 fn save_to(path: &Path, settings: &Settings) -> std::io::Result<()> {
+    let mut value = serde_json::to_value(settings).map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))?;
+    if let Value::Object(fields) = &mut value {
+        fields.remove("mochiLooks");
+    }
+    let json = serde_json::to_vec_pretty(&value).map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))?;
+    write_atomic(path, &json)
+}
+
+/// Writes `json` over the file at `path` in one go, never over one that could
+/// not be loaded and could not be copied aside (`keep_what_was_not_loaded`).
+fn write_atomic(path: &Path, json: &[u8]) -> std::io::Result<()> {
     keep_what_was_not_loaded(path)?;
-    let json = serde_json::to_vec_pretty(settings)
-        .map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))?;
 
     // A dotfiles setup can make settings.json a symlink: write to the file it
     // points at, so the link survives the rename below.
@@ -399,7 +659,7 @@ fn save_to(path: &Path, settings: &Settings) -> std::io::Result<()> {
     // power cut leaves the previous settings.json intact rather than half a file.
     let temp = path.with_extension(format!("json.coucou-{}", std::process::id()));
     let written = std::fs::File::create(&temp)
-        .and_then(|mut file| write_whole(&mut file, &json))
+        .and_then(|mut file| write_whole(&mut file, json))
         .and_then(|()| std::fs::rename(&temp, path));
     if written.is_err() {
         let _ = std::fs::remove_file(&temp);
@@ -436,6 +696,8 @@ mod tests {
   "customUrl": "https://llm.example.com",
   "shortcuts": { "openChat": { "keys": "Ctrl+Shift+K", "enabled": false } },
   "mochiOutfit": "witchHat",
+  "mochiShape": "bean",
+  "wardrobeMode": "all",
   "pillColors": { "integration_claude": "#2DD4BF" },
   "language": "pt-BR",
   "desktopMochi": { "onDesktop": true, "spot": { "x": 1500.5, "y": -300.0, "space": "screen" } },
@@ -448,7 +710,15 @@ mod tests {
   "phoneUsage": true,
   "phoneServices": ["integration_stripe"],
   "phoneRelay": true,
-  "phoneRelayUrl": "wss://relay.example.workers.dev"
+  "phoneRelayUrl": "wss://relay.example.workers.dev",
+  "mochiName": "Momo",
+  "mochiNames": { "integration_github": "Gus" },
+  "keepVisible": true,
+  "quickScan": true,
+  "keepMicOn": true,
+  "models": [{ "id": "m-1", "label": "Whisper", "kind": "openai", "model": "whisper-large-v3-turbo",
+    "endpoint": "https://api.groq.com/openai/v1", "vision": null, "output": "stt", "voice": "", "detail": "" }],
+  "textOnlyModels": ["custom/llama-3.3"]
 }"##;
 
     fn custom() -> Value {
@@ -943,6 +1213,8 @@ mod tests {
                 "customUrl",
                 "shortcuts",
                 "mochiOutfit",
+                "mochiShape",
+                "wardrobeMode",
                 "pillColors",
                 "language",
                 "desktopMochi",
@@ -956,6 +1228,13 @@ mod tests {
                 "phoneServices",
                 "phoneRelay",
                 "phoneRelayUrl",
+                "mochiName",
+                "mochiNames",
+                "keepVisible",
+                "quickScan",
+                "keepMicOn",
+                "models",
+                "textOnlyModels",
             ]
         );
         let _ = std::fs::remove_dir_all(&dir);
@@ -991,5 +1270,173 @@ mod tests {
         assert!(save_to(&file, &Settings::default()).is_err());
         assert_eq!(std::fs::read(&file).unwrap(), CUSTOM.as_bytes());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_previous_forks_wardrobe_moves_to_upstreams_once() {
+        let old = custom_with(
+            "wardrobe",
+            Some(json!({
+                "integration_claude": { "shape": "onigiri", "head": "tophat" },
+                "integration_github": { "shape": "tofu", "head": "crown" },
+            })),
+        );
+        let mut s = parse(&old).unwrap();
+        s.mochi_shape.clear();
+        assert!(migrate_wardrobe(&mut s));
+        // The main Mochi's hat is now his outfit, his shape the wardrobe's.
+        assert_eq!(s.mochi_outfit, "topHat");
+        assert_eq!(s.mochi_shape, "onigiri");
+        // His look is also his own; the other Mochis keep theirs.
+        let main = MochiLook { outfit: "topHat".into(), shape: "onigiri".into() };
+        assert_eq!(s.mochi_looks.get(MAIN_MOCHI), Some(&main));
+        let gitta = MochiLook { outfit: "crown".into(), shape: "tofu".into() };
+        assert_eq!(s.mochi_looks.get("integration_github"), Some(&gitta));
+        // Nothing of it is written back, and a second load changes nothing.
+        assert!(s.wardrobe.is_empty());
+        assert!(shown(&s).get("wardrobe").is_none());
+        assert!(!migrate_wardrobe(&mut s));
+
+        // A hat upstream already had maps to its outfit; no hat keeps the outfit.
+        let mut s = Settings::default();
+        s.wardrobe.insert("integration_claude".into(), Look { shape: String::new(), head: "bunny".into() });
+        migrate_wardrobe(&mut s);
+        assert_eq!((s.mochi_outfit.as_str(), s.mochi_shape.as_str()), ("bunnyEars", ""));
+        let mut s = Settings { mochi_outfit: "scarf".into(), ..Default::default() };
+        s.wardrobe.insert("integration_claude".into(), Look { shape: "bean".into(), head: String::new() });
+        migrate_wardrobe(&mut s);
+        assert_eq!((s.mochi_outfit.as_str(), s.mochi_shape.as_str()), ("scarf", "bean"));
+    }
+
+    // ── Each Mochi's own look (wardrobe-looks.json) ───────────────────────────
+
+    #[test]
+    fn the_first_launch_gives_the_shared_look_to_the_main_mochi_too() {
+        let (dir, file) = scratch("looks-first");
+        let looks = dir.join("wardrobe-looks.json");
+        let mut s = Settings { mochi_outfit: "chefHat".into(), mochi_shape: "bean".into(), ..Default::default() };
+        assert!(load_looks_from(&looks, &mut s));
+        let main = MochiLook { outfit: "chefHat".into(), shape: "bean".into() };
+        assert_eq!(s.mochi_looks.get(MAIN_MOCHI), Some(&main));
+        // The shared look stays what "all" mode wears.
+        assert_eq!((s.mochi_outfit.as_str(), s.mochi_shape.as_str()), ("chefHat", "bean"));
+
+        // Saved apart: settings.json never holds them, the next launch reads them back.
+        s.mochi_looks.insert("integration_github".into(), MochiLook { outfit: "auto".into(), shape: "tofu".into() });
+        save_to(&file, &s).unwrap();
+        save_looks_to(&looks, &s.mochi_looks).unwrap();
+        let written: Value = serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+        assert!(written.get("mochiLooks").is_none());
+        let mut again = load_from(&file);
+        assert!(!load_looks_from(&looks, &mut again));
+        assert_eq!(again.mochi_looks, s.mochi_looks);
+        assert_eq!(names(&dir), ["settings.json", "wardrobe-looks.json"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn switching_modes_keeps_both_sets_of_looks() {
+        let (dir, file) = scratch("looks-modes");
+        let looks = dir.join("wardrobe-looks.json");
+        let mut s = Settings { mochi_outfit: "crown".into(), ..Default::default() };
+        s.mochi_looks.insert(MAIN_MOCHI.into(), MochiLook { outfit: "topHat".into(), shape: String::new() });
+        for mode in ["all", "perMochi", "all"] {
+            s.wardrobe_mode = mode.into();
+            save_to(&file, &s).unwrap();
+            save_looks_to(&looks, &s.mochi_looks).unwrap();
+            let mut back = load_from(&file);
+            load_looks_from(&looks, &mut back);
+            assert_eq!(back.wardrobe_mode, mode);
+            assert_eq!(back.mochi_outfit, "crown");
+            assert_eq!(back.mochi_looks, s.mochi_looks);
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_corrupt_looks_file_is_kept_aside_before_anything_is_saved() {
+        let (dir, _) = scratch("looks-corrupt");
+        let looks = dir.join("wardrobe-looks.json");
+        let garbage = b"{ \"main\": { \"outfit\": ";
+        std::fs::write(&looks, garbage).unwrap();
+        let mut s = Settings { mochi_outfit: "scarf".into(), ..Default::default() };
+        assert!(load_looks_from(&looks, &mut s));
+        assert_eq!(s.mochi_looks.get(MAIN_MOCHI).map(|l| l.outfit.as_str()), Some("scarf"));
+        let copies: Vec<String> = names(&dir).into_iter().filter(|n| n.starts_with("wardrobe-looks.json.corrupt-")).collect();
+        assert_eq!(copies.len(), 1);
+        assert_eq!(std::fs::read(dir.join(&copies[0])).unwrap(), garbage);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_looks_file_that_cannot_be_read_is_never_written_over() {
+        // A directory squatting on the name cannot be read as a file.
+        let (dir, _) = scratch("looks-unread");
+        let looks = dir.join("wardrobe-looks.json");
+        std::fs::create_dir(&looks).unwrap();
+        std::fs::write(looks.join("keep"), b"x").unwrap();
+        let mut s = Settings::default();
+        assert!(load_looks_from(&looks, &mut s));
+        assert!(save_looks_to(&looks, &s.mochi_looks).is_err());
+        assert_eq!(std::fs::read(looks.join("keep")).unwrap(), b"x");
+        not_loaded().retain(|p| p != &looks);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_previous_forks_chat_models_move_to_the_providers_once() {
+        let entry = |id: &str, kind: &str, model: &str, endpoint: &str, output: &str| ModelEntry {
+            id: id.into(),
+            label: model.into(),
+            kind: kind.into(),
+            model: model.into(),
+            endpoint: endpoint.into(),
+            output: output.into(),
+            ..Default::default()
+        };
+        let mut s = Settings {
+            models: vec![
+                entry("claude", "claude", "claude-opus-5", "", ""),
+                entry("m-1", "openai", "llama-3.3-70b", "https://api.groq.com/openai/v1", "text"),
+                entry("m-2", "openai", "whisper-large-v3-turbo", "https://api.groq.com/openai/v1", "stt"),
+                entry("m-3", "openai", "gpt-image-1", "https://api.openai.com/v1", "image"),
+            ],
+            active_model: "m-1".into(),
+            ..Default::default()
+        };
+        // The Groq chat model in use becomes the Custom server, its key to bind.
+        assert_eq!(migrate_models(&mut s).as_deref(), Some("https://api.groq.com/openai/v1"));
+        assert_eq!(s.chat_provider, "custom");
+        assert_eq!(s.custom_url, "https://api.groq.com/openai/v1");
+        assert_eq!(s.chat_models.get("custom").map(String::as_str), Some("llama-3.3-70b"));
+        let ids: Vec<&str> = s.models.iter().map(|m| m.id.as_str()).collect();
+        assert_eq!(ids, ["m-2", "m-3"]);
+        // Nothing left to move: a second load changes nothing.
+        let before = serde_json::to_value(&s).unwrap();
+        assert_eq!(migrate_models(&mut s), None);
+        assert_eq!(serde_json::to_value(&s).unwrap(), before);
+
+        // A Claude model in use stays with Claude; a Custom server already set is kept.
+        let mut s = Settings {
+            models: vec![entry("claude", "claude", "claude-haiku-4-5", "", "")],
+            active_model: "claude".into(),
+            custom_url: "https://llm.example.com".into(),
+            ..Default::default()
+        };
+        assert_eq!(migrate_models(&mut s), None);
+        assert_eq!((s.chat_provider.as_str(), s.model.as_str()), ("anthropic", "claude-haiku-4-5"));
+        assert_eq!(s.custom_url, "https://llm.example.com");
+        assert!(s.models.is_empty());
+
+        // An image model in use: the chat's Create chip picks it.
+        let mut s = Settings {
+            models: vec![entry("m-1", "openai", "llama", "https://x.dev/v1", ""), entry("m-3", "openai", "gpt-image-1", "https://api.openai.com/v1", "image")],
+            active_model: "m-3".into(),
+            ..Default::default()
+        };
+        migrate_models(&mut s);
+        assert_eq!(s.chat_provider, crate::media::PROVIDER);
+        assert_eq!(s.chat_models.get(crate::media::PROVIDER).map(String::as_str), Some("m-3"));
+        assert!(s.custom_url.is_empty());
     }
 }
