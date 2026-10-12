@@ -15,6 +15,13 @@ interface MiniBot {
 }
 
 const live = new Map<HTMLCanvasElement, MiniBot>();
+/** Every mini sleeps while the island's Mochis do (island.ts, after a quiet spell). */
+let asleep = false;
+
+/** Takes effect on the next syncMiniBotStates (the island redraws for it). */
+export function setMiniBotsAsleep(on: boolean) {
+  asleep = on;
+}
 
 /** Fork: extra canvas above and beside the body, in R, for the mini's own
  *  outfit (the party hat on the bean reaches 2.7 R above the body centre, the witch
@@ -76,7 +83,7 @@ export function createMiniBot(task: AgentTask, bodySize: number, dancing?: () =>
   // The body centre sits 0.06 R below the slot's; half a pixel spare for antialiasing.
   engine.outfitRoom = Math.min(layout.room, (roomAbove - 0.5) / layout.R + 0.06);
   engine.bodyColor = hexToRGB(task.color);
-  engine.setState(task.state, true);
+  engine.setState(asleep ? "sleeping" : task.state, true);
   if (task.emote) engine.setPermanentEmote(task.emote);
   if (task.miniEye) {
     engine.permanentEye = task.miniEye;
@@ -104,7 +111,7 @@ export function syncMiniBotStates(tasks: AgentTask[], lookOf: (task: AgentTask) 
   for (const mb of live.values()) {
     const task = tasks.find((t) => t.id === mb.taskId);
     if (!task) continue;
-    mb.engine.setState(task.state);
+    mb.engine.setState(asleep ? "sleeping" : task.state);
     mb.engine.bodyColor = hexToRGB(task.color);
     const look = lookOf(task);
     mb.engine.setOutfit(look.outfit, false);

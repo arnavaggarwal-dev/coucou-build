@@ -173,6 +173,7 @@ export class DesktopLink {
       outfit: (State.focusMochi === MAIN_MOCHI ? State.wardrobePreview : null) ?? this.seasons.get(look.outfit),
       soundEnabled: State.settings.soundEnabled,
       soundVolume: State.settings.soundVolume,
+      sleepAfter: 30 + State.settings.autoCloseInterval,
       paused: State.paused,
       dancing: desktopDances(State.musicPlaying, State.effectiveState),
       shape: look.shape,

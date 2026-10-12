@@ -23,6 +23,8 @@ export interface DesktopSnapshot {
   dancing: boolean;
   /** His body shape from the wardrobe (wardrobe.ts SHAPES). */
   shape?: string;
+  /** Fork: seconds of quiet before he sleeps, the island Mochis' own rule. */
+  sleepAfter?: number;
 }
 
 /** Events between the two windows. Rust adds `desktop-mochi-dropped`. */
@@ -74,8 +76,8 @@ export interface Point {
  * Whether Mochi should be asleep: no agent activity for longer than
  * SLEEP_TIMEOUT (strictly), and the pointer not close to him.
  */
-export function shouldSleep(sinceAgentActive: number, mouseDistanceToCenter: number): boolean {
-  return sinceAgentActive > SLEEP_TIMEOUT && mouseDistanceToCenter >= SLEEP_MOUSE_DISTANCE;
+export function shouldSleep(sinceAgentActive: number, mouseDistanceToCenter: number, timeout = SLEEP_TIMEOUT): boolean {
+  return sinceAgentActive > timeout && mouseDistanceToCenter >= SLEEP_MOUSE_DISTANCE;
 }
 
 /** Hit test of the round body inside the square window (window-local). */

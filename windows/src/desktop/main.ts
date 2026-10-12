@@ -141,7 +141,7 @@ class DesktopMochi {
     const distance = pointerDistance(this.mode === "poll", this.cursor, now - this.lastPointer);
     const sleep =
       !this.dragging &&
-      (this.snap.paused || shouldSleep((now - this.lastAgentActive) / 1000, distance));
+      (this.snap.paused || shouldSleep((now - this.lastAgentActive) / 1000, distance, this.snap.sleepAfter));
     if (sleep === this.asleep) return;
     this.asleep = sleep;
     this.engine.setState(sleep ? "sleeping" : this.snap.state);

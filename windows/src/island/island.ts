@@ -15,7 +15,7 @@ import { State } from "../core/state";
 import { SPOTIFY_ID, islandDances } from "../core/spotify";
 import { BotEngine, MOOD_ACTS, hexToRGB } from "../mochi/engine";
 import { Greeting } from "../mochi/greeting";
-import { createMiniBot, pruneMiniBots, syncMiniBotStates, tickMiniBots } from "../mochi/minibots";
+import { createMiniBot, pruneMiniBots, setMiniBotsAsleep, syncMiniBotStates, tickMiniBots } from "../mochi/minibots";
 import { SeasonCache, lookOf, mochiKey, setLook } from "../mochi/wardrobe";
 import { UploadCanvas } from "../upload/canvas";
 import { USC, UploadSeq, uploadProgressCurve } from "../upload/sequence";
@@ -26,7 +26,7 @@ import { IslandStateMachine } from "./fsm";
 import { refreshHookPills } from "./integrations";
 import { DesktopLink } from "./desktop";
 import type { ViewCommand } from "./shortcuts";
-import { DRAG_THRESHOLD } from "../mochi/desktop-logic";
+import { DRAG_THRESHOLD, agentActive } from "../mochi/desktop-logic";
 import { Pods } from "./pods";
 
 const BOT_OVERHANG = 40;
@@ -139,7 +139,17 @@ export class Island {
     State.subscribe(() => {
       this.dirty = true;
       this.ensureRunning();
+      // A session changing state is activity; other redraws are not.
+      const sessions = State.tasks.map((t) => `${t.id}:${t.state}`).join();
+      if (sessions !== this.sessions) {
+        this.sessions = sessions;
+        this.noteActivity();
+      }
     });
+    for (const type of ["mousemove", "mousedown", "keydown", "wheel", "mochi-mood"]) {
+      window.addEventListener(type, this.noteActivity, { passive: true });
+    }
+    this.noteActivity();
   }
 
   /** The request has its answer: the card goes and the session carries on. */
@@ -1332,8 +1342,36 @@ export class Island {
       const look = lookOf(State.settings, mochiKey(task, State.mainPillId));
       return { outfit: this.seasons.get(look.outfit), shape: look.shape };
     });
-    this.engine.setState(State.effectiveState);
+    this.engine.setState(this.asleep ? "sleeping" : State.effectiveState);
   }
+
+  // ── Sleep ───────────────────────────────────────────────────────────────────
+
+  private asleep = false;
+  private sleepTimer: number | null = null;
+  private sessions = "";
+
+  /** Any sign of life wakes every Mochi and restarts the clock: after 30 s
+   *  plus the island's own close delay of quiet, they all fall asleep. */
+  private noteActivity = () => {
+    if (this.sleepTimer != null) window.clearTimeout(this.sleepTimer);
+    this.sleepTimer = window.setTimeout(this.fallAsleep, (30 + State.settings.autoCloseInterval) * 1000);
+    if (!this.asleep) return;
+    this.asleep = false;
+    setMiniBotsAsleep(false);
+    this.dirty = true;
+    this.ensureRunning();
+  };
+
+  private fallAsleep = () => {
+    this.sleepTimer = null;
+    // A session still at work keeps them up: look again after another spell.
+    if (State.tasks.some((t) => agentActive(t.state))) return this.noteActivity();
+    this.asleep = true;
+    setMiniBotsAsleep(true);
+    this.dirty = true;
+    this.ensureRunning();
+  };
 
   /** The closed island's middle: the focused Mochi's current step, else the clock. */
   private syncCompactStatus() {
