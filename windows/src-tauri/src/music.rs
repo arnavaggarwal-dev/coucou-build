@@ -159,7 +159,7 @@ mod imp {
     use windows::Media::MediaPlaybackType;
     use windows::Storage::Streams::IRandomAccessStreamWithContentType;
 
-    use super::{app_name, cover_color, is_browser, NowPlaying};
+    use super::{app_name, cover_color, is_music, NowPlaying};
     use crate::log;
 
     /// How long a player may go quiet before the Music pill says nothing plays.
