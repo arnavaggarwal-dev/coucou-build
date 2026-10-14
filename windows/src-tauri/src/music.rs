@@ -88,6 +88,11 @@ fn is_web_app(app_id: &str) -> bool {
 
 /// Browsers report videos (YouTube…) as ordinary media sessions. Installed
 /// web apps aren't tabs, so they don't count.
+/// Music, not a video or a browser tab, unless the tab names an album (fork).
+fn is_music(video: bool, app_id: &str, album: &str) -> bool {
+    !video && (!is_browser(app_id) || !album.trim().is_empty())
+}
+
 fn is_browser(app_id: &str) -> bool {
     let id = app_id.to_lowercase();
     !is_web_app(app_id) && [
@@ -180,12 +185,16 @@ mod imp {
             return None;
         }
         let artist = props.Artist().map(|a| a.to_string()).unwrap_or_default();
+        // Fork: a browser tab counts as music when it names an album, as
+        // YouTube Music, Spotify's web player and the like do; a YouTube video
+        // never does.
+        let album = props.AlbumTitle().map(|a| a.to_string()).unwrap_or_default();
         Some(NowPlaying {
             title,
             artist,
             app: app_name(&app_id),
             playing,
-            music: !video && !is_browser(&app_id),
+            music: is_music(video, &app_id, &album),
             ..Default::default()
         })
     }
@@ -423,6 +432,14 @@ mod tests {
         for id in ["Spotify.exe", "AppleInc.AppleMusicWin_nzyj5cx40ttqa!App", "Microsoft.ZuneMusic_8wekyb3d8bbwe!Microsoft.ZuneMusic"] {
             assert!(!is_browser(id), "{id}");
         }
+    }
+
+    #[test]
+    fn browser_tabs_with_an_album_are_music() {
+        assert!(is_music(false, "Brave", "SENDO SENDO"));
+        assert!(!is_music(false, "Brave", " "));
+        assert!(!is_music(true, "Brave", "SENDO SENDO"));
+        assert!(is_music(false, "Spotify.exe", ""));
     }
 
     #[test]

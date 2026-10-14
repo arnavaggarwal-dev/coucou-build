@@ -4,6 +4,7 @@
 import { BotEngine, hexToRGB } from "./engine";
 import type { AgentTask } from "../core/state";
 import type { Outfit } from "./wardrobe";
+import { dancesIn } from "../core/spotify";
 
 interface MiniBot {
   canvas: HTMLCanvasElement;
@@ -21,6 +22,12 @@ let asleep = false;
 /** Takes effect on the next syncMiniBotStates (the island redraws for it). */
 export function setMiniBotsAsleep(on: boolean) {
   asleep = on;
+}
+
+/** Fork: music is playing, so every resting mini dances (island.ts, each frame). */
+let music = false;
+export function setMiniBotsMusic(on: boolean) {
+  music = on;
 }
 
 /** Fork: extra canvas above and beside the body, in R, for the mini's own
@@ -125,7 +132,7 @@ export function tickMiniBots(dt: number) {
     const ctx = mb.canvas.getContext("2d");
     if (!ctx) continue;
     const { size, side, width, height } = mb.layout;
-    mb.engine.setDancing(mb.dancing?.() ?? false);
+    mb.engine.setDancing(mb.dancing?.() ?? (music && !asleep && dancesIn(mb.engine.state)));
     mb.engine.update(dt);
     ctx.setTransform(dpr, 0, 0, dpr, side * dpr, 0);
     ctx.clearRect(-side, 0, width, height);

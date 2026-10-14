@@ -15,7 +15,7 @@ import { shapeOf, shapePoint, taperAt, type ShapeDef } from "./shapes";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type EyeShape =
-  | "pill" | "wide" | "dot" | "line" | "flat" | "happy" | "closed"
+  | "pill" | "wide" | "dot" | "line" | "flat" | "happy" | "closed" | "droop"
   | "spiral" | "heart" | "star" | "tired" | "wink" | "cup"
   // Chat moods: brimming with tears, furrowed, charged up.
   | "teary" | "angry" | "glow";
@@ -285,8 +285,6 @@ export class BotEngine {
   tint = 0; morph = 0; hands = 0; blush = 0; es = 1; badgeS = 0;
   /** An emote's colour wash over the body (EMOTE_TINT), 0 to 1. */
   moodTint = 0;
-  /** Melted into the floor by sleep: 0 awake, 1 fully squished (update). */
-  sink = 0;
   private moodCol: RGB = [1, 1, 1];
   /** The emote playing, for the effects drawn every frame (fire, tears, steam...). */
   private fx: { name: BotEmoteName; t0: number; t1: number } | null = null;
@@ -407,6 +405,16 @@ export class BotEngine {
         break;
       case "question":
         this.blink();
+        break;
+      case "sleeping":
+        // Fork: falling asleep. The lids droop, flutter half open once, droop
+        // shut, then he sleeps with closed eyes (the head nods down, update).
+        this.eyeOverride = "droop";
+        this.eyeOverrideUntil = now() + 2.5;
+        this.anim("open", [
+          [0.5, 700, Ease.inOut], [0.8, 220, Ease.out], [0.3, 650, Ease.inOut],
+          [0.45, 200, Ease.out], [0.05, 650, Ease.inOut], [0.05, 200, Ease.lin], [1, 1, Ease.lin],
+        ]);
         break;
       case "ratelimit":
         this.emit("sweat", 1);
@@ -787,7 +795,7 @@ export class BotEngine {
       this.fx !== null ||
       this.cfg.bounces || this.cfg.scans || this.cfg.breathes || this.cfg.zz || this.cfg.sweat ||
       this.isMini ||
-      this.isDancing || this.dancingLevel > 0.001 || this.sink > 0.002 ||
+      this.isDancing || this.dancingLevel > 0.001 ||
       Math.abs(this.tgYaw - this.yaw) > 0.002 ||
       Math.abs(this.tgPitch - this.pitch) > 0.002 ||
       Math.abs(this.tgTilt - this.tilt) > 0.002 ||
@@ -883,10 +891,6 @@ export class BotEngine {
     const kGen = 1 - Math.pow(0.0008, dt);
     if (!this.locks.has("oy")) this.oy += (bounce - this.oy) * kGen;
 
-    // Asleep he melts into the floor like a marshmallow, slowly; awake again,
-    // he springs back up quicker.
-    const sleeping = this.state === "sleeping";
-    this.sink += ((sleeping ? 1 : 0) - this.sink) * (1 - Math.pow(sleeping ? 0.55 : 0.02, dt));
     if (this.cfg.breathes) {
       // Slow, deep breaths (only sleeping breathes).
       const amp = this.isMini ? 0.07 : 0.035;
@@ -1045,13 +1049,10 @@ export class BotEngine {
     this.r = R;
     // Charged up (hype), the whole body buzzes.
     const buzz = this.fxLevel("hype") * R * 0.025;
-    // Sunk in sleep: shorter and wider, the bottom kept on the floor.
-    const flat = 0.28 * this.sink;
-    const sx = this.sx * (1 + flat * 0.8);
-    const sy = this.sy * (1 - flat);
+    const sx = this.sx;
+    const sy = this.sy;
     const cx = W / 2 + this.ox * R + Math.sin(now() * 97) * buzz;
-    const cy = H / 2 + this.particleOverhang / 2 + this.oy * R + R * 0.06 + Math.sin(now() * 71) * buzz * 0.5 +
-      ry * this.sy * flat;
+    const cy = H / 2 + this.particleOverhang / 2 + this.oy * R + R * 0.06 + Math.sin(now() * 71) * buzz * 0.5;
 
     // With an outfit on, a roll turns the whole character — hat included — as
     // one piece instead of rolling the eyes over the body (BotCanvasView, macOS).
@@ -1580,6 +1581,13 @@ export class BotEngine {
         x.fill();
         x.fillStyle = ink;
         break;
+      case "droop": {
+        // A pill whose top lid comes down: the bottom edge stays put.
+        const hh = Math.max(h * this.open, w * 0.22);
+        roundRectPath(x, -w / 2, h / 2 - hh, w, hh, Math.min(w / 2, hh / 2));
+        x.fill();
+        break;
+      }
       case "tired":
         roundRectPath(x, -w / 2, -h * 0.02, w, h * 0.38, w / 2);
         x.fill();

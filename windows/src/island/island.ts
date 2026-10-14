@@ -16,7 +16,7 @@ import { SPOTIFY_ID, islandDances } from "../core/spotify";
 import { BotEngine, MOOD_ACTS, hexToRGB } from "../mochi/engine";
 import { Greeting } from "../mochi/greeting";
 import {
-  createMiniBot, forEachMiniBot, pruneMiniBots, setMiniBotsAsleep, syncMiniBotStates, tickMiniBots,
+  createMiniBot, forEachMiniBot, pruneMiniBots, setMiniBotsAsleep, setMiniBotsMusic, syncMiniBotStates, tickMiniBots,
 } from "../mochi/minibots";
 import { MAIN_MOCHI, SeasonCache, lookOf, mochiKey, setLook } from "../mochi/wardrobe";
 import { UploadCanvas } from "../upload/canvas";
@@ -1265,6 +1265,13 @@ export class Island {
     this.engine.shape = look.shape;
     // Dances while music plays: always in the compact island, expanded only on
     // the music pill's card (BotCanvasView, macOS). Asked every frame.
+    setMiniBotsMusic(State.musicPlaying);
+    // Music starting wakes them to dance (fork); while it plays they stay up.
+    if (State.musicPlaying && !this.musicWas && State.asleep) {
+      void Bridge.log("mochi wake: music started");
+      this.noteActivity();
+    }
+    this.musicWas = State.musicPlaying;
     this.engine.setDancing(islandDances({
       music: State.musicPlaying,
       state: this.engine.state,
@@ -1383,13 +1390,15 @@ export class Island {
   // ── Sleep ───────────────────────────────────────────────────────────────────
 
   private sleepTimer: number | null = null;
+  /** Music was playing at the last frame, to see it start. */
+  private musicWas = false;
   /** Each pill's state at the last redraw, to see a session start. */
   private sessions = new Map<string, BotStateName>();
   /** Chat messages sent so far (the chat starts over on a new file). */
   private asked = 0;
 
-  /** A chat message or a session starting wakes every Mochi and restarts the
-   *  clock: after 30 s plus the island's own close delay, they fall asleep. */
+  /** A chat message, a session starting or music starting wakes every Mochi and restarts the
+   *  clock: after 30 s plus the island's own close delay, they fall asleep (not while music plays). */
   private noteActivity = () => {
     if (this.sleepTimer != null) window.clearTimeout(this.sleepTimer);
     this.sleepTimer = window.setTimeout(this.fallAsleep, (30 + State.settings.autoCloseInterval) * 1000);
@@ -1402,6 +1411,8 @@ export class Island {
     // A finished or failed one is done working: it must not.
     const working = (t: { state: BotStateName }) => agentActive(t.state) && t.state !== "finished" && t.state !== "error";
     if (State.tasks.some(working)) return this.noteActivity();
+    // Dancing Mochis don't nod off: while music plays, look again later.
+    if (State.musicPlaying) return this.noteActivity();
     this.setAsleep(true);
   };
 

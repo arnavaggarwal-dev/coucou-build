@@ -17,6 +17,7 @@ import {
 } from "../core/pills";
 import { h, clear } from "../views/dom";
 import { agentsSection } from "./agents";
+import { phoneSection } from "./phone";
 import { colorDot } from "./colors";
 import {
   forkSettingsChanged, mediaModelsSection, nameInput, wardrobeSection, type ForkContext,
@@ -240,6 +241,7 @@ function claudeSection(status: HookStatus): HTMLElement {
  */
 const PLAN_SETTINGS_TEXT = {
   get claude() { return t("Shows your Claude plan usage (5-hour and weekly limits) in the island's header. Coucou adds a status line relay in ~/.claude/settings.json. If you already have a status line, it keeps working as before. Pro and Max plans only."); },
+  get claudeCli() { return t("The numbers come from the Claude Code command-line tool. The Claude desktop app does not report them, so the gauge stays empty if you only use the desktop app."); },
   get showClaude() { return t("Show in notch"); },
   get codex() { return t("Shows your Codex plan usage (weekly limit and free resets left) in the island's header. Coucou asks the Codex CLI (codex app-server) when the pill shows; nothing is installed. Codex must be signed in with ChatGPT."); },
   get showCodex() { return t("Show Codex plan in the notch"); },
@@ -281,7 +283,7 @@ function planSection(status: HookStatus): HTMLElement {
       }
     });
     body.append(
-      item(PLAN_SETTINGS_TEXT.showClaude, PLAN_SETTINGS_TEXT.claude, sw),
+      item(PLAN_SETTINGS_TEXT.showClaude, `${PLAN_SETTINGS_TEXT.claude} ${PLAN_SETTINGS_TEXT.claudeCli}`, sw),
       // Codex: nothing to install, Coucou asks the Codex CLI when the pill shows.
       item(PLAN_SETTINGS_TEXT.showCodex, PLAN_SETTINGS_TEXT.codex,
         toggle(settings.showCodexPlanInNotch, (on) => {
@@ -1375,6 +1377,7 @@ async function render() {
     ["agents", t("Agents"), [claudeSection(status), agentsSection(agents), planSection(status)]],
     ["chat", t("Chat"), [chatProvidersSection(chatKeys, keyChanged, claudeCode), localSection(customKey)]],
     ["media", t("Media and voice"), [general.voice, mediaModelsSection(fork)]],
+    ["phone", t("Android phone"), [phoneSection(settings.phoneLink ?? false, toggle, settings)]],
     ["shortcuts", t("Shortcuts"), shortcutsSection(shortcutReport)],
   ]));
 }

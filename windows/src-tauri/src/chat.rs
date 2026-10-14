@@ -369,6 +369,40 @@ pub async fn send(
     Ok(ChatReply { text, mood, notice: notice.or(reply.notice), ..reply })
 }
 
+/// One turn of the phone's conversation (phone_link/chat_backend.rs): the same providers as
+/// [`send`], with no file or window context and no `AppHandle`. `on_delta` gets the streamed
+/// text so far, which only the model servers produce; the cloud providers answer all at once.
+/// Mochi's mood line (this fork's system prompt asks for one) never reaches the phone.
+pub async fn send_for_phone(
+    settings: &Settings,
+    chat: &Chat,
+    provider: &str,
+    model: &str,
+    query: String,
+    mut on_delta: impl FnMut(String),
+) -> Result<ChatReply, String> {
+    let reply = if provider == ANTHROPIC {
+        claude::send(chat, model, query, None).await
+    } else if let Some(p) = openai_compat::provider(provider) {
+        openai_compat::send(chat, p, model, query, None).await
+    } else if let Some(server) = local_chat::server(settings, provider) {
+        local_chat::send_with(chat, &server, model, query, None, |so_far| on_delta(hide_mood_tail(&so_far))).await
+    } else {
+        Err(format!("Unknown chat provider: {provider}"))
+    }?;
+    let (text, _) = take_mood(&reply.text);
+    Ok(ChatReply { text, ..reply })
+}
+
+/// Streamed text without the mood line coming in at its end (as views/chat.ts hides it).
+fn hide_mood_tail(text: &str) -> String {
+    let Some(start) = text.rfind('{').filter(|&i| text[i + 1..].trim_start().starts_with("\"mood")) else {
+        return text.to_string();
+    };
+    let body = text[..start].trim_end();
+    body.strip_suffix("```json").or_else(|| body.strip_suffix("```")).unwrap_or(body).trim_end().to_string()
+}
+
 /// The models `provider` offers. Asked only when the user opens the picker on
 /// that provider, and only once it has a key (or, for a local server, an
 /// address): nothing is sent anywhere before that.

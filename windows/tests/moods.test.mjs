@@ -50,20 +50,17 @@ test("ten hits make Mochi angry; nine don't", () => {
   assert.equal(e.eyeOverride, "angry");
 });
 
-test("asleep, Mochi ignores the cursor and melts into the floor; awake, he springs back", () => {
+test("falling asleep, Mochi's lids droop shut and he ignores the cursor", () => {
   for (const isMini of [false, true]) {
     const e = new BotEngine();
     e.isMini = isMini;
     e.setState("sleeping", true);
+    assert.equal(e.eyeOverride, "droop", "the lids droop first");
     e.lookX = 1;
     e.lookY = 1;
-    e.setDancing(true);
     for (let i = 0; i < 100; i++) e.update(0.05);
     assert.equal(e.tgYaw, 0, "no turn towards the cursor");
     assert.equal(e.tgPitch, -0.14, "head down");
-    assert.ok(e.sink > 0.9, `sunk: ${e.sink}`);
-    e.setState("idle");
-    for (let i = 0; i < 40; i++) e.update(0.05);
-    assert.ok(e.sink < 0.01, `back up: ${e.sink}`);
+    assert.equal(e.sink, undefined, "no squish into the floor");
   }
 });

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (this fork, on Windows and Linux 0.3.0)
+## Unreleased (this fork, on Windows and Linux 0.4.0)
 
 - **Talk to the chat**: with a speech-to-text model saved (Settings → Media and voice models, e.g. Groq's whisper-large-v3-turbo), Send is the mic while the field is empty. Your words appear as you speak, it sends when you stop talking and never sends silence; "Keep the mic on" listens again after each reply *(Windows)*
 - **Replies in GitHub-style Markdown**: tables that fit the chat, task lists, footnotes, alerts, math (KaTeX), strikethrough and GitHub's safe HTML; code with its language and Copy, and a dropped code file shown as a code card
@@ -15,6 +15,33 @@
 - Claude Code's `git push` brings the GitHub card up with the push on it
 - The closed island shows what the focused Mochi is doing, or the time; "Keep island visible" keeps it there instead of hiding; auto-close from 3 s
 - The island and its windows stay out of taskbars and Alt+Tab, replacement taskbars included; hidden windows give their memory back *(Windows)*
+
+## Unreleased
+
+- **Flow dictation** *(macOS, GitHub build)* — hold a key anywhere on the Mac (right ⌥ by default, or right ⌘, right ⌃ or fn), speak, let go: your words are pasted where you type, like Wispr Flow. A small pill rests at the bottom of the screen while Flow dictation is on; when you speak it opens into Mochi and nine dots rising and falling with the graves and the aigus of your voice. Two quick taps keep it listening hands-free until the next tap; Esc cancels. Speech is recognised by the Mac (on-device when it can), and the clipboard gets back what it held after the paste. Off by default — Settings → Voice; it needs the Accessibility permission to see the key and paste
+
+## Android 0.2.0 — October 13, 2026
+
+- **Home-screen widgets** — nine to pick from, each with a real preview in the widget picker: Mochi at a glance, Mochi's mood, Approvals waiting, Finished today, Plan usage, a one-line status with four buttons, all your agents, Mochi big (Mochi, plan usage and six buttons), and the agents summary, now on the same card. The colour follows your most urgent agent: orange when something waits for you, blue while it works, green when it's done, grey when the computer isn't there. Plan usage has its own colours (teal, yellow from 75 %, red from 90 %, with the time it resets). Read-only: the buttons only open a screen of the app, and a request is always decided in the app, behind your fingerprint. No background refresh: they redraw when something changes, plus once at midnight so Finished today starts again at zero, and that count stays on the phone (#620 by @Rhytam23)
+- Working notes that were not meant to ship are gone from `android/` (#618 by @Rhytam23)
+
+## Android 0.1.0 — October 11, 2026
+
+- **Coucou for Android**, by @Rhytam23 — your agents, Allow and Deny with your fingerprint or screen lock (even on a locked phone), answers to Claude's questions, chat through the computer's own keys, plan usage and services, an optional island over other apps, a widget, a quick-settings tile and an ongoing notification. It pairs with Coucou 0.4.0 or later on Windows or Linux. Android 11 or later, English only; a signed APK on the [release page](https://github.com/Louis-CFM/coucou/releases/tag/android-v0.1.0) (#501 by @Rhytam23)
+
+## Windows and Linux 0.4.0 — October 11, 2026
+
+- **Your Android phone** — Settings → Android phone: the link for [Coucou for Android](android/README.md), an opt-in server on your local network, off by default (nothing listens until you turn it on), paired with a QR code and a pinned certificate. "Pair again" disconnects every phone, a command too long to show in full can only be allowed on the computer, and each extra (session details, answers, chat through your own keys, file changes, plan usage, services) has its own switch (#500 by @Rhytam23)
+- **Plan usage**: Settings and the README say that the Claude gauge needs the Claude Code command-line tool, not the Claude desktop app (#479 by @Rhytam23)
+- Newer versions of the GitHub actions in the build workflows (#499 by @Rhytam23)
+
+## 0.3.0 — October 11, 2026
+
+- **« OK Coucou »: talk to Mochi** *(macOS, GitHub build)* — say « OK Coucou » and ask anything, in English or French. Claude is Coucou's brain, with your own Anthropic API key: add or swap pills, play music, ask how much you made on Stripe today, your GitHub stars, your Vercel deploys, what your agents are doing, search the web, open an app. It keeps the thread, asks back when something is missing, and listens again for your answer. Speech recognition runs on your Mac; your words and the data Coucou reads to answer go to Anthropic, never audio. Turn it on in Settings → Voice
+- **Emails by voice** — « send an email to Enzo to tell him the image is ready »: Coucou finds the address in your contacts, writes the email, opens it in the notch, and you drop an attachment on the notch if you want one. Nothing is sent until you click Send
+- **Mochi lives the conversation** — he listens (his eyes follow your voice), thinks, talks back, and winks when he's done. The answer shows under the notch: click it to read it in full. You can open the island while he talks
+- **His voice** — the Mac's voices with Woman / Man and pitch, the best installed voice picked automatically (Premium voices recommended), or ElevenLabs with your own key
+- **Smoother and lighter** — animations at the display's full rate, a hidden island that really rests, and less background work everywhere (pollers, logs, Mochi on the desktop)
 
 ## Windows and Linux 0.3.0 — October 9, 2026
 

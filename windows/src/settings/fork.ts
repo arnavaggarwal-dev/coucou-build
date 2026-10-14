@@ -171,7 +171,7 @@ export function mediaModelsSection(ctx: ForkContext): HTMLElement {
         h("div", { class: "row" }, label, makes, keyDot, use, remove),
         h("div", { class: "hint", text: named ? `${provider} · ${m.model}` : provider }),
         m.output === "audio"
-          ? h("div", { class: "row" }, h("span", { class: "hint", text: "Voice" }), voiceInput(m, ctx.save))
+          ? h("div", { class: "row" }, h("span", { class: "hint", text: t("Voice") }), voiceInput(m, ctx.save))
           : null,
         m.output === "stt"
           ? h("div", { class: "hint", text: "The chat's mic uses this to turn your voice into text as you speak." })
