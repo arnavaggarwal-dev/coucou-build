@@ -37,6 +37,7 @@ mod shot;
 mod sounds;
 mod spotify;
 mod tray;
+mod watchdog;
 #[cfg(windows)]
 mod webview_drop;
 
@@ -314,6 +315,7 @@ fn open_file_in_vscode(path: String) -> bool {
 
 #[tauri::command]
 fn quit_app(app: AppHandle) {
+    log::line("quit: asked from the island or Settings");
     app.exit(0);
 }
 
@@ -733,6 +735,16 @@ fn open_settings_window(app: AppHandle) {
 }
 
 pub fn run() {
+    // Fork: this process may be Coucou's watchdog (watchdog.rs) and nothing else.
+    if watchdog::run_if_asked() {
+        return;
+    }
+    // Fork: a panic is written to coucou.log before the default report.
+    let report = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        log::line(format!("panic: {info}"));
+        report(info);
+    }));
     platform::prepare_environment();
     let mut loaded = settings::load();
     // Each Mochi's own look (wardrobe-looks.json); on the first launch with it
@@ -936,6 +948,8 @@ pub fn run() {
             island::spawn_cursor_poll(handle.clone(), gate.clone());
 
             log::line(format!("--- Coucou {} started ---", env!("CARGO_PKG_VERSION")));
+            // Fork: restarts Coucou if it dies, and logs how it ended.
+            watchdog::spawn();
             hooks::ensure_hook_exe(&handle);
             pipe::start(handle.clone());
             phone_link::start_if_enabled(&handle);
@@ -950,6 +964,9 @@ pub fn run() {
         .run(|app, event| {
             // Withdraw the phone link's announcement on the local network before the process ends.
             if let tauri::RunEvent::Exit = event {
+                // Fork: a clean exit says so; a crash or a kill leaves no such line
+                // (the watchdog then logs its exit code).
+                log::line("--- Coucou exiting ---");
                 phone_link::stop_on_exit(app);
             }
         });

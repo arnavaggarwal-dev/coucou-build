@@ -86,13 +86,13 @@ fn is_web_app(app_id: &str) -> bool {
     app_id.to_lowercase().contains("_crx_")
 }
 
-/// Browsers report videos (YouTube…) as ordinary media sessions. Installed
-/// web apps aren't tabs, so they don't count.
 /// Music, not a video or a browser tab, unless the tab names an album (fork).
 fn is_music(video: bool, app_id: &str, album: &str) -> bool {
     !video && (!is_browser(app_id) || !album.trim().is_empty())
 }
 
+/// Browsers report videos (YouTube…) as ordinary media sessions. Installed
+/// web apps aren't tabs, so they don't count.
 fn is_browser(app_id: &str) -> bool {
     let id = app_id.to_lowercase();
     !is_web_app(app_id) && [

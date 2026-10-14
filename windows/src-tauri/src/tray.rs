@@ -37,7 +37,10 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         .tooltip("Coucou")
         .menu(&menu)
         .on_menu_event(|app: &AppHandle, event| match event.id.as_ref() {
-            "quit" => app.exit(0),
+            "quit" => {
+                crate::log::line("quit: tray menu");
+                app.exit(0);
+            }
             "settings" => crate::show_settings_window(app),
             id => {
                 let _ = app.emit_to(WINDOW_LABEL, "tray", id.to_string());
