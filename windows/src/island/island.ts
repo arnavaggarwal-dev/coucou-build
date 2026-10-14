@@ -148,9 +148,16 @@ export class Island {
       const asked = this.asked;
       this.sessions = new Map(State.tasks.map((t) => [t.id, t.state]));
       this.asked = State.chatHistory.filter((m) => m.role === "user").length;
-      if (this.asked > asked || sessionStarted(before, State.tasks)) this.noteActivity();
+      const started = sessionStarted(before, State.tasks);
+      if (started && State.asleep) void Bridge.log("mochi wake: a session started");
+      if (this.asked > asked || started) this.noteActivity();
     });
     this.noteActivity();
+    // Diagnostics (coucou.log): the island's JS heap every 10 min, to spot a leak.
+    window.setInterval(() => {
+      const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+      if (mem) void Bridge.log(`island heap ${Math.round(mem.usedJSHeapSize / 1048576)} MB`);
+    }, 600_000);
   }
 
   /** The request has its answer: the card goes and the session carries on. */
@@ -1401,6 +1408,8 @@ export class Island {
   /** The island's Mochis, the minis and the desktop one (island/desktop.ts). */
   private setAsleep(on: boolean) {
     if (State.asleep === on) return;
+    // Diagnostics (coucou.log): why Mochi sleeps or wakes, with every session's state.
+    void Bridge.log(`mochi ${on ? "asleep" : "awake"}; sessions: ${State.tasks.map((t) => `${t.id.slice(0, 8)}=${t.state}`).join(" ") || "none"}`);
     State.asleep = on;
     setMiniBotsAsleep(on);
     State.notify();
