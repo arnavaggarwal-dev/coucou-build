@@ -19,10 +19,8 @@ import { h, clear } from "../views/dom";
 import { agentsSection } from "./agents";
 import { phoneSection } from "./phone";
 import { colorDot } from "./colors";
-import {
-  forkSettingsChanged, mediaModelsSection, nameInput, wardrobeSection, type ForkContext,
-} from "./fork";
-import { advanced, card, item, renderDiff, statusDot, toggle } from "./parts";
+import { forkSettingsChanged, mediaModelsSection, mochiSection, nameInput, type ForkContext } from "./fork";
+import { renderDiff, statusDot } from "./parts";
 import {
   LANGUAGES, N_, isRtl, onLanguageChange, resolveLanguage, setLanguage, systemLanguages, t, tn,
 } from "../i18n/i18n";
@@ -35,12 +33,6 @@ const KEY_STORE = navigator.userAgent.includes("Windows")
 let settings: Settings = { ...DEFAULT_SETTINGS };
 let version = "";
 
-/** How fork.ts reads and saves the settings, which are replaced on every outside save. */
-const fork: ForkContext = {
-  settings: () => settings,
-  save: () => void save(),
-};
-
 const root = document.getElementById("settings-root")!;
 
 async function save() {
@@ -51,6 +43,25 @@ async function save() {
 function pickColor(next: Record<string, string>) {
   settings.pillColors = next;
   void save();
+}
+
+/** How fork.ts reads and saves the settings, which are replaced on every outside save. */
+const fork: ForkContext = {
+  settings: () => settings,
+  save: () => void save(),
+  toggle: (on, onChange) => toggle(on, onChange),
+};
+
+// ── Reusable bits ─────────────────────────────────────────────────────────────
+
+function toggle(on: boolean, onChange: (v: boolean) => void): HTMLElement {
+  const el = h("button", { class: on ? "switch on" : "switch", "aria-pressed": on });
+  el.addEventListener("click", () => {
+    const next = !el.classList.contains("on");
+    el.classList.toggle("on", next);
+    onChange(next);
+  });
+  return el;
 }
 
 // ── Changes to Claude Code's settings.json ────────────────────────────────────
@@ -181,6 +192,15 @@ function claudeSection(status: HookStatus): HTMLElement {
           ? t("Coucou is hooked into your Claude Code sessions. Tool calls, questions and permission requests show up in the island, and you can answer them there.")
           : t("Install the hooks to see your Claude Code sessions in the island and approve permissions without leaving what you are doing."),
       }),
+      h("div", { class: "row" },
+        h("label", { text: "settings.json" }),
+        h("span", { class: "path", text: status.settingsPath }),
+      ),
+      h("div", { class: "row" },
+        h("label", { text: t("Relay") }),
+        h("span", { class: "path", text: status.hookPath }),
+        statusDot(status.hookReady),
+      ),
     );
 
     if (!status.hookReady) {
@@ -210,21 +230,7 @@ function claudeSection(status: HookStatus): HTMLElement {
         onclick: () => void reviewChange(body, HOOKS_CHANGE, false, redraw, () => void rebuild()),
       }));
     }
-    body.append(
-      actions,
-      // Where things live: wanted when something goes wrong, not every day.
-      advanced(
-        h("div", { class: "row" },
-          h("label", { text: "settings.json" }),
-          h("span", { class: "path", text: status.settingsPath }),
-        ),
-        h("div", { class: "row" },
-          h("label", { text: t("Relay") }),
-          h("span", { class: "path", text: status.hookPath }),
-          statusDot(status.hookReady),
-        ),
-      ),
-    );
+    body.append(actions);
   }
 
   draw();
@@ -283,38 +289,125 @@ function planSection(status: HookStatus): HTMLElement {
       }
     });
     body.append(
-      item(PLAN_SETTINGS_TEXT.showClaude, `${PLAN_SETTINGS_TEXT.claude} ${PLAN_SETTINGS_TEXT.claudeCli}`, sw),
+      h("div", {
+        class: "hint",
+        text: PLAN_SETTINGS_TEXT.claude,
+      }),
+      h("div", { class: "hint", text: PLAN_SETTINGS_TEXT.claudeCli }),
+      h("div", { class: "row" }, h("label", { text: PLAN_SETTINGS_TEXT.showClaude }), sw),
+      h("div", { class: "row" },
+        h("label", { text: t("Relay") }),
+        statusDot(status.planRelayInstalled),
+        h("span", { class: "hint", text: status.planRelayInstalled ? t("installed") : t("not installed") }),
+        status.planRelayInstalled
+          ? h("button", {
+              class: "danger",
+              text: t("Uninstall relay…"),
+              onclick: () => void reviewChange(body, STATUS_LINE_CHANGE, false, redraw, () => void rebuild()),
+            })
+          : h("button", {
+              class: "primary",
+              text: t("Install relay…"),
+              onclick: () => void reviewChange(body, STATUS_LINE_CHANGE, true, redraw, () => void rebuild()),
+            }),
+      ),
       // Codex: nothing to install, Coucou asks the Codex CLI when the pill shows.
-      item(PLAN_SETTINGS_TEXT.showCodex, PLAN_SETTINGS_TEXT.codex,
+      h("div", { class: "hint", text: PLAN_SETTINGS_TEXT.codex }),
+      h("div", { class: "row" },
+        h("label", { text: PLAN_SETTINGS_TEXT.showCodex }),
         toggle(settings.showCodexPlanInNotch, (on) => {
           settings.showCodexPlanInNotch = on;
           void save();
         }),
-      ),
-      // The switch above installs the relay when it needs to; by hand is for fixing things.
-      advanced(
-        h("div", { class: "row" },
-          h("label", { text: t("Relay") }),
-          statusDot(status.planRelayInstalled),
-          h("span", { class: "hint", text: status.planRelayInstalled ? t("installed") : t("not installed") }),
-          h("span", { class: "spacer" }),
-          status.planRelayInstalled
-            ? h("button", {
-                class: "danger",
-                text: t("Uninstall relay…"),
-                onclick: () => void reviewChange(body, STATUS_LINE_CHANGE, false, redraw, () => void rebuild()),
-              })
-            : h("button", {
-                text: t("Install relay…"),
-                onclick: () => void reviewChange(body, STATUS_LINE_CHANGE, true, redraw, () => void rebuild()),
-              }),
-        ),
       ),
     );
   }
 
   draw();
   return section;
+}
+
+// ── Claude API section ────────────────────────────────────────────────────────
+
+const MODELS: [string, string][] = [
+  ["claude-opus-5", "Claude Opus 5"],
+  ["claude-sonnet-5", "Claude Sonnet 5"],
+  ["claude-haiku-4-5", "Claude Haiku 4.5"],
+];
+
+function apiSection(hasKey: boolean): HTMLElement {
+  const dot = statusDot(hasKey);
+  const state = h("span", { class: "hint", text: hasKey ? t("Key saved in the {store}.", { store: KEY_STORE }) : t("No key yet — the chat needs one.") });
+
+  const field = h("input", {
+    type: "password",
+    placeholder: hasKey ? `••••••••••••  ${t("(stored)")}` : "sk-ant-...",
+    style: "flex:1 1 auto;min-width:0",
+    autocomplete: "off",
+    spellcheck: "false",
+  }) as HTMLInputElement;
+
+  const saveBtn = h("button", { class: "primary", text: t("Save key") });
+  const clearBtn = h("button", { class: "danger", text: t("Remove") });
+  const feedback = h("div", {});
+
+  async function refresh() {
+    const present = (await Bridge.secretPresent("anthropic-api-key")) ?? false;
+    dot.style.background = present ? "#22c55e" : "#f4505e";
+    state.textContent = present
+      ? t("Key saved in the {store}.", { store: KEY_STORE })
+      : t("No key yet — the chat needs one.");
+    field.placeholder = present ? `••••••••••••  ${t("(stored)")}` : "sk-ant-...";
+    clearBtn.style.display = present ? "" : "none";
+  }
+
+  saveBtn.addEventListener("click", async () => {
+    const value = field.value.trim();
+    if (!value) return;
+    clear(feedback);
+    try {
+      await Bridge.secretSet("anthropic-api-key", value);
+      field.value = "";
+      feedback.append(h("div", { class: "notice ok", text: t("Saved. It never touches disk.") }));
+      await refresh();
+    } catch (err) {
+      feedback.append(h("div", { class: "notice err", text: t("Could not save: {error}", { error: String(err) }) }));
+    }
+  });
+
+  clearBtn.addEventListener("click", async () => {
+    clear(feedback);
+    try {
+      await Bridge.secretClear("anthropic-api-key");
+      feedback.append(h("div", { class: "notice ok", text: t("Key removed.") }));
+      await refresh();
+    } catch (err) {
+      feedback.append(h("div", { class: "notice err", text: t("Could not remove: {error}", { error: String(err) }) }));
+    }
+  });
+
+  const model = h("select", {}) as HTMLSelectElement;
+  for (const [id, label] of MODELS) model.append(h("option", { value: id, text: label }));
+  if (!MODELS.some(([id]) => id === settings.model)) {
+    model.append(h("option", { value: settings.model, text: settings.model }));
+  }
+  model.value = settings.model;
+  model.addEventListener("change", () => {
+    settings.model = model.value;
+    void save();
+  });
+
+  clearBtn.style.display = hasKey ? "" : "none";
+
+  return h(
+    "section",
+    {},
+    h("h2", {}, dot, h("span", { text: "Claude" })),
+    state,
+    h("div", { class: "row" }, h("label", { text: t("API key") }), field, saveBtn, clearBtn),
+    h("div", { class: "row" }, h("label", { text: t("Model") }), model),
+    feedback,
+  );
 }
 
 // ── Active pills section ──────────────────────────────────────────────────────
@@ -360,9 +453,7 @@ function activePillsSection(connected: Record<string, boolean>): HTMLElement {
     }
     const why = hint(def);
     el.append(h("span", { class: "state", text: why ?? "" }));
-    const sw = h("button", {
-      class: on ? "switch on" : "switch", role: "switch", "aria-checked": String(on), "aria-label": def.name,
-    }) as HTMLButtonElement;
+    const sw = h("button", { class: on ? "switch on" : "switch" }) as HTMLButtonElement;
     sw.disabled = full;
     sw.addEventListener("click", () => {
       const next = toggleDeclared(settings, def.id);
@@ -395,7 +486,8 @@ function activePillsSection(connected: Record<string, boolean>): HTMLElement {
     {},
     h("h2", {}, h("span", { text: t("Active pills") })),
     h("div", { class: "hint", text: t("Choose the tools you use. Coucou only shows what you declare here.") }),
-    item(t("Main tool"), slots, main),
+    slots,
+    h("div", { class: "row" }, h("label", { text: t("Main tool") }), main),
     groups,
   );
 }
@@ -404,7 +496,7 @@ function activePillsSection(connected: Record<string, boolean>): HTMLElement {
 
 const CHAT_STRINGS = {
   get providersTitle() { return t("Chat providers"); },
-  get providersHint() { return t("Add a key here (Claude Code needs none: it uses your subscription), then click the model name above the chat box to switch provider and model. Keys stay in the system keychain. Only Claude and Claude Code search the web; no provider can act on this computer."); },
+  get providersHint() { return t("Chat with Google AI, OpenAI or OpenRouter instead of Claude: add a key here, then click the model name above the chat box to switch provider and model. Keys stay in the system keychain. These providers get no web search and no tools: they can answer, never act on this computer."); },
   get stored() { return `••••••••  ${t("(stored)")}`; },
   get save() { return t("Save"); },
   get remove() { return t("Remove"); },
@@ -426,24 +518,16 @@ const CHAT_STRINGS = {
 };
 
 interface CloudDef {
-  id: "anthropic" | "google" | "openai" | "openrouter";
+  id: "google" | "openai" | "openrouter";
   name: string;
   placeholder: string;
   where: string;
 }
 
 const CLOUD: CloudDef[] = [
-  { id: "anthropic", name: "Claude", placeholder: "sk-ant-…", where: "console.anthropic.com" },
   { id: "google", name: "Google AI", placeholder: "AIza…", where: "aistudio.google.com" },
   { id: "openai", name: "OpenAI", placeholder: "sk-…", where: "platform.openai.com" },
   { id: "openrouter", name: "OpenRouter", placeholder: "sk-or-…", where: "openrouter.ai/keys" },
-];
-
-/** Claude's models, under its row (Settings.model). */
-const CLAUDE_MODELS: [string, string][] = [
-  ["claude-opus-5", "Claude Opus 5"],
-  ["claude-sonnet-5", "Claude Sonnet 5"],
-  ["claude-haiku-4-5", "Claude Haiku 4.5"],
 ];
 
 function chatProvidersSection(
@@ -452,11 +536,6 @@ function chatProvidersSection(
   claudeCode: boolean,
 ): HTMLElement {
   const list = h("div", { style: "display:flex;flex-direction:column;gap:8px" });
-  const feedback = h("div", {});
-  const say = (cls: string, text: string) => {
-    clear(feedback);
-    feedback.append(h("div", { class: `notice ${cls}`, text }));
-  };
   for (const def of CLOUD) {
     const p = providerDef(def.id);
     const key = p.key!;
@@ -483,10 +562,8 @@ function chatProvidersSection(
         present[key] = true;
         input.value = "";
         keyChanged(key, true);
-        say("ok", t("Saved. It never touches disk."));
-      } catch (err) {
+      } catch {
         dotEl.style.background = "#f5a524";
-        say("err", t("Could not save: {error}", { error: String(err) }));
         return;
       }
       refresh();
@@ -496,10 +573,8 @@ function chatProvidersSection(
         await Bridge.secretClear(key);
         present[key] = false;
         keyChanged(key, false);
-        say("ok", t("Key removed."));
-      } catch (err) {
+      } catch {
         dotEl.style.background = "#f5a524";
-        say("err", t("Could not remove: {error}", { error: String(err) }));
         return;
       }
       refresh();
@@ -513,36 +588,24 @@ function chatProvidersSection(
         ),
         input, saveBtn, removeBtn, dotEl,
       ),
-      h("div", { class: "hint row-hint", text: t("Key from {site}", { site: def.where }) }),
+      h("div", { class: "hint", style: "margin:-4px 0 0 144px", text: t("Key from {site}", { site: def.where }) }),
     );
-    if (def.id === "anthropic") list.append(claudeModelRow(), claudeCodeRow(claudeCode));
   }
+  list.append(...claudeCodeRows(claudeCode));
   return h(
     "section",
     {},
     h("h2", {}, h("span", { text: CHAT_STRINGS.providersTitle })),
     h("div", { class: "hint", text: CHAT_STRINGS.providersHint }),
     list,
-    feedback,
   );
 }
 
-function claudeModelRow(): HTMLElement {
-  const model = h("select", {}) as HTMLSelectElement;
-  for (const [id, label] of CLAUDE_MODELS) model.append(h("option", { value: id, text: label }));
-  if (!CLAUDE_MODELS.some(([id]) => id === settings.model)) {
-    model.append(h("option", { value: settings.model, text: settings.model }));
-  }
-  model.value = settings.model;
-  model.addEventListener("change", () => {
-    settings.model = model.value;
-    void save();
-  });
-  return h("div", { class: "row" }, h("label", { text: t("Model") }), model);
-}
-
-/** The user's Claude Code CLI (claude_code.rs): no key, only whether it is here. */
-function claudeCodeRow(found: boolean): HTMLElement {
+/**
+ * The user's Claude Code CLI as a chat provider (claude_code.rs): no key to
+ * enter, only whether it is installed, and a button to chat with it.
+ */
+function claudeCodeRows(found: boolean): HTMLElement[] {
   const p = providerDef("claude-code");
   const use = h("button", {}) as HTMLButtonElement;
   const draw = () => {
@@ -556,20 +619,21 @@ function claudeCodeRow(found: boolean): HTMLElement {
     void save().then(draw);
   });
   draw();
-  return h("div", {},
+  return [
     h("div", { class: "row" },
       h("label", {},
         h("i", { class: "dot", style: `background:${p.accent};margin-right:8px` }),
         h("span", { text: p.name }),
       ),
-      h("span", { style: "flex:1 1 auto" }),
-      statusDot(found), use,
+      h("span", { class: "spacer" }),
+      use, statusDot(found),
     ),
     h("div", {
-      class: "hint row-hint",
+      class: "hint",
+      style: "margin:-4px 0 0 144px",
       text: found ? t("Uses your Claude Code subscription, no API key.") : t("Claude Code isn't installed."),
     }),
-  );
+  ];
 }
 
 // ── Local models section ──────────────────────────────────────────────────────
@@ -611,18 +675,9 @@ function localSection(customKey: boolean): HTMLElement {
     h("div", { class: "hint", text: CHAT_STRINGS.localHint }),
     body,
   );
-  // Any OpenAI-compatible server is for the few who run one: folded away
-  // unless it is connected. The fold stays as the user left it across redraws.
-  const custom = advanced();
-  const customBody = custom.lastElementChild!;
   const redraw = () => {
     clear(body);
-    clear(customBody);
-    for (const id of Object.keys(LOCAL) as LocalId[]) {
-      (id === "custom" ? customBody : body).append(serverBlock(id));
-    }
-    if (settings.customUrl) custom.open = true;
-    body.append(custom);
+    for (const id of Object.keys(LOCAL) as LocalId[]) body.append(serverBlock(id));
   };
 
   function serverBlock(id: LocalId): HTMLElement {
@@ -769,7 +824,8 @@ const INTEGRATIONS: IntegrationDef[] = [
   // Nothing to enter: Spotify is read over D-Bus (Linux only, see core/pills.ts).
   { id: "integration_spotify", name: "Spotify", color: "#1DB954", fields: [] },
   // Nothing to enter either: the Windows media controls (Windows only, music.rs).
-  { id: "integration_music", name: "Music", color: "#FA2D48", fields: [] },
+  { id: "integration_music", name: "Music", color: "#FA2D48", fields: [],
+    hint: "Shows what plays in Spotify, Apple Music, YouTube Music or any other player in the Windows media controls, with play, pause and skip. Mochi dances to music, not to videos." },
 ];
 
 const MAX_ACTIVE = MAX_DECLARED;
@@ -784,7 +840,7 @@ function declaredChanged() {
 
 function integrationsSection(present: Record<string, boolean>): HTMLElement {
   const note = h("div", { class: "hint" });
-  const list = h("div", { class: "integration-list" });
+  const list = h("div", { style: "display:flex;flex-direction:column;gap:14px" });
 
   function updateNote() {
     const used = settings.activeIntegrations.length;
@@ -795,9 +851,7 @@ function integrationsSection(present: Record<string, boolean>): HTMLElement {
   const offered = new Set(availablePills().map((p) => p.id));
   for (const def of INTEGRATIONS.filter((d) => offered.has(d.id))) {
     const active = settings.activeIntegrations.includes(def.id);
-    const sw = h("button", {
-      class: active ? "switch on" : "switch", role: "switch", "aria-checked": String(active), "aria-label": def.name,
-    });
+    const sw = h("button", { class: active ? "switch on" : "switch" });
     sw.addEventListener("click", () => {
       const on = settings.activeIntegrations.includes(def.id);
       if (on) {
@@ -807,12 +861,11 @@ function integrationsSection(present: Record<string, boolean>): HTMLElement {
         settings.activeIntegrations = [...settings.activeIntegrations, def.id];
       }
       sw.classList.toggle("on", !on);
-      sw.setAttribute("aria-checked", String(!on));
       declaredChanged();
     });
 
     const rows = h("div", { style: "display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0" });
-    // This coloured Mochi's name first, then its keys.
+    // This coloured Mochi's name, then its keys.
     rows.append(
       h("div", { class: "row" },
         h("label", { style: "min-width:104px", text: "Mochi's name" }),
@@ -824,12 +877,6 @@ function integrationsSection(present: Record<string, boolean>): HTMLElement {
         }, fork.save),
       ),
     );
-    if (def.id === "integration_music") {
-      rows.append(h("div", {
-        class: "hint",
-        text: "No key needed: shows what plays in Spotify, Apple Music, YouTube Music or any other player in the Windows media controls, with play/pause and skip. Mochi dances to music (not to browser videos).",
-      }));
-    }
     for (const field of def.fields) {
       const input = h("input", {
         type: field.secret ? "password" : "text",
@@ -848,7 +895,6 @@ function integrationsSection(present: Record<string, boolean>): HTMLElement {
           input.value = "";
           input.placeholder = value ? CHAT_STRINGS.stored : field.placeholder;
           dotEl.style.background = value ? "#22c55e" : "#f4505e";
-          setState();
         } catch {
           dotEl.style.background = "#f5a524";
         }
@@ -871,21 +917,14 @@ function integrationsSection(present: Record<string, boolean>): HTMLElement {
       });
     }
 
-    // One line per service; its Mochi's name and keys fold out on a click.
-    const state = h("span", { class: "state" });
-    function setState() {
-      const missing = def.fields.some((f) => !present[f.key]);
-      state.textContent = missing ? t("Key not configured") : "";
-    }
-    setState();
     list.append(
-      h("div", { class: "integration" },
-        colorDot(def, "", () => settings.pillColors, pickColor),
-        h("details", { class: "disclosure" },
-          h("summary", {}, h("span", { class: "name", text: def.name }), state),
-          h("div", { class: "disclosure-body" }, rows),
+      h("div", { style: "display:flex;gap:12px;align-items:flex-start" },
+        h("div", { style: "display:flex;align-items:center;gap:8px;min-width:132px;padding-top:4px" },
+          sw,
+          colorDot(def, "", () => settings.pillColors, pickColor),
+          h("span", { style: "font-size:12.5px", text: def.name }),
         ),
-        sw,
+        rows,
       ),
     );
   }
@@ -896,7 +935,7 @@ function integrationsSection(present: Record<string, boolean>): HTMLElement {
 
 // ── General section ───────────────────────────────────────────────────────────
 
-function generalSection() {
+function generalSection(): HTMLElement {
   const volume = h("input", {
     type: "range", min: "0", max: "0.2", step: "0.005",
     value: String(settings.soundVolume),
@@ -921,12 +960,12 @@ function generalSection() {
   });
 
   const autoClose = h("input", {
-    type: "number", min: "3", max: "120", step: "1",
+    type: "number", min: "5", max: "120", step: "1",
     value: String(Math.round(settings.autoCloseInterval)),
     style: "width:72px",
   }) as HTMLInputElement;
   autoClose.addEventListener("change", () => {
-    settings.autoCloseInterval = Math.max(3, Math.min(120, Number(autoClose.value) || 15));
+    settings.autoCloseInterval = Math.max(5, Math.min(120, Number(autoClose.value) || 15));
     autoClose.value = String(settings.autoCloseInterval);
     void save();
   });
@@ -957,43 +996,43 @@ function generalSection() {
     void save();
   });
 
-  const sw = (on: boolean, set: (v: boolean) => void) => toggle(on, (v) => { set(v); void save(); });
-  return {
-    general: [
-      card("", null,
-        item(t("Language"), null, languageSelect()),
-        item(t("Launch at startup"), null, sw(settings.autostart, (v) => (settings.autostart = v))),
-      ),
-      card("", null,
-        item(t("Sound"), null, volume, sw(settings.soundEnabled, (v) => (settings.soundEnabled = v))),
-        // Your own sounds: for the few who make them.
-        advanced(
-          h("div", { class: "hint", text: t("Drop a file named like one of Mochi's sounds (finish.wav, approval.mp3, greet.m4a…) in the sounds folder to replace it, then Reload.") }),
-          h("div", { class: "row" }, soundsFolder, reloadSounds, customCount),
-        ),
-      ),
-      recapCard(),
-    ],
-    island: card(t("Behavior"), null,
-      item(t("Open on hover"), t("Hovering the island opens it; it folds again shortly after the pointer leaves. Click inside to keep it open."),
-        sw(settings.openOnHover, (v) => (settings.openOnHover = v))),
-      item(t("Auto-close"), t("seconds after you leave the island"), autoClose),
-      item("Keep island visible", "stays compact at the top instead of hiding",
-        sw(settings.keepVisible ?? false, (v) => (settings.keepVisible = v))),
-      item(t("Island lives on"), null, screen),
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: t("General") })),
+    h("div", { class: "row" },
+      h("label", { text: t("Sound") }),
+      toggle(settings.soundEnabled, (v) => { settings.soundEnabled = v; void save(); }),
+      volume,
     ),
-    mochi: card("", null,
-      item("Mochi's name", "What the chat calls itself, and the name on the main Mochi's pill when nothing runs.",
-        nameInput(settings.mochiName ?? "", "Mochi", (v) => { settings.mochiName = v; }, fork.save)),
-      item("Quick screenshot", "Ctrl+drag Mochi out: skip his scan and capture 0.2 s after the drop",
-        sw(settings.quickScan ?? false, (v) => (settings.quickScan = v))),
+    h("div", { class: "row" }, soundsFolder, reloadSounds, customCount),
+    h("div", { class: "hint", text: t("Drop a file named like one of Mochi's sounds (finish.wav, approval.mp3, greet.m4a…) in the sounds folder to replace it, then Reload.") }),
+    h("div", { class: "row" },
+      h("label", { text: t("Open on hover") }),
+      toggle(settings.openOnHover, (v) => { settings.openOnHover = v; void save(); }),
     ),
-    // Dictation: the chat's mic, with the speech-to-text model below.
-    voice: card("", null,
-      item("Keep the mic on", "after a spoken question, listen again once the reply is in",
-        sw(settings.keepMicOn ?? false, (v) => (settings.keepMicOn = v))),
+    h("div", { class: "hint", text: t("Hovering the island opens it; it folds again shortly after the pointer leaves. Click inside to keep it open.") }),
+    h("div", { class: "row" },
+      h("label", { text: t("Auto-close") }),
+      autoClose,
+      h("span", { class: "hint", text: t("seconds after you leave the island") }),
     ),
-  };
+    h("div", { class: "row" },
+      h("label", { text: "Keep island visible" }),
+      toggle(settings.keepVisible ?? false, (v) => { settings.keepVisible = v; void save(); }),
+    ),
+    h("div", { class: "hint", text: "At rest the island stays compact at the top, showing what Mochi is doing or the time, instead of hiding." }),
+    h("div", { class: "row" },
+      h("label", { text: t("Island lives on") }),
+      screen,
+    ),
+    h("div", { class: "row" },
+      h("label", { text: t("Launch at startup") }),
+      toggle(settings.autostart, (v) => { settings.autostart = v; void save(); }),
+    ),
+    ...recapRows(),
+    languageRow(),
+  );
 }
 
 /**
@@ -1001,7 +1040,7 @@ function generalSection() {
  * system's language when Coucou has it (else English), or one of the ten.
  * Both windows and the tray switch in place, without a restart.
  */
-function languageSelect(): HTMLSelectElement {
+function languageRow(): HTMLElement {
   const select = h("select", {}) as HTMLSelectElement;
   select.append(h("option", { value: "", text: t("System") }));
   for (const { code, name } of LANGUAGES) select.append(h("option", { value: code, text: name, lang: code }));
@@ -1011,12 +1050,13 @@ function languageSelect(): HTMLSelectElement {
     void save();
     applyLanguage();
   });
-  return select;
+  return h("div", { class: "row" }, h("label", { text: t("Language") }), select);
 }
 
 // ── Shortcuts section ─────────────────────────────────────────────────────────
 
 const SHORTCUTS_UI = {
+  get title() { return t("Shortcuts"); },
   get hint() { return t("Work from any app. Click a shortcut to change it, then press the new keys — Esc cancels, Backspace removes it."); },
   get global() { return t("From anywhere"); },
   get island() { return t("In the open island"); },
@@ -1049,7 +1089,7 @@ const SHORTCUTS_UI = {
   get refused() { return t("Not set by your desktop"); },
 };
 
-function shortcutsSection(initial: ShortcutsReport | null): HTMLElement[] {
+function shortcutsSection(initial: ShortcutsReport | null): HTMLElement {
   let report = initial;
   const list = h("div", { class: "shortcut-list" });
   const feedback = h("div", {});
@@ -1213,14 +1253,23 @@ function shortcutsSection(initial: ShortcutsReport | null): HTMLElement[] {
   };
 
   draw();
-  return [
-    card(SHORTCUTS_UI.global, SHORTCUTS_UI.hint, list, blockedNote, feedback, h("div", { class: "row" }, reset)),
-    card(SHORTCUTS_UI.island, null, islandList),
-  ];
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: SHORTCUTS_UI.title })),
+    h("div", { class: "hint", text: SHORTCUTS_UI.hint }),
+    h("div", { class: "subhead", text: SHORTCUTS_UI.global }),
+    list,
+    blockedNote,
+    feedback,
+    h("div", { class: "row" }, reset),
+    h("div", { class: "subhead", text: SHORTCUTS_UI.island }),
+    islandList,
+  );
 }
 
 /** Settings → General → Weekly recap. The prefs live with the history in Rust. */
-function recapCard(): HTMLElement {
+function recapRows(): HTMLElement[] {
   const T = {
     label: t("Weekly recap"),
     keep: t("Keep a history of my coding sessions"),
@@ -1231,9 +1280,7 @@ function recapCard(): HTMLElement {
   const feedback = h("span", { class: "hint" });
   const sw = toggle(true, (v) => { void Bridge.recapSetEnabled(v); });
   void Bridge.recapPrefs().then((prefs) => {
-    if (!prefs) return;
-    sw.classList.toggle("on", prefs.enabled);
-    sw.setAttribute("aria-checked", String(prefs.enabled));
+    if (prefs) sw.classList.toggle("on", prefs.enabled);
   });
   const clearBtn = h("button", {
     class: "danger",
@@ -1248,10 +1295,22 @@ function recapCard(): HTMLElement {
       }, 2400);
     },
   }) as HTMLButtonElement;
-  return card(T.label, T.about,
-    item(T.keep, null, sw),
-    advanced(h("div", { class: "row" }, clearBtn, feedback)),
-  );
+  return [
+    h("div", { class: "row" },
+      h("label", { text: T.label }),
+      sw,
+      h("span", { class: "hint", text: T.keep }),
+    ),
+    h("div", { class: "row" },
+      h("label", {}),
+      clearBtn,
+      feedback,
+    ),
+    h("div", { class: "row" },
+      h("label", {}),
+      h("span", { class: "hint", style: "flex:1 1 0;min-width:0", text: T.about }),
+    ),
+  ];
 }
 
 // ── Language ──────────────────────────────────────────────────────────────────
@@ -1281,15 +1340,14 @@ async function rerender() {
     renderAgain = true;
     return;
   }
-  const scroll = root.querySelector(".content")?.scrollTop ?? 0;
+  const scroll = document.scrollingElement?.scrollTop ?? 0;
   rendering = render();
   try {
     await rendering;
   } finally {
     rendering = null;
   }
-  const content = root.querySelector(".content");
-  if (content) content.scrollTop = scroll;
+  if (document.scrollingElement) document.scrollingElement.scrollTop = scroll;
   if (renderAgain) {
     renderAgain = false;
     await rerender();
@@ -1332,6 +1390,7 @@ async function render() {
   };
   const agents = await Bridge.agentHooksList();
 
+  const hasKey = (await Bridge.secretPresent("anthropic-api-key")) ?? false;
   const shortcutReport = await Bridge.shortcutsStatus();
 
   const keys = [
@@ -1367,124 +1426,26 @@ async function render() {
   declaredViews.length = 0;
   localRedraw = null;
   shortcutsListener = null;
-  const general = generalSection();
   clear(root);
-  root.append(layout([
-    ["general", t("General"), general.general],
-    ["island", t("Island"), [general.island]],
-    ["mochi", t("Mochi"), [general.mochi, wardrobeSection(fork)]],
-    ["pills", t("Pills"), [activePillsSection(connected), integrationsSection(present)]],
-    ["agents", t("Agents"), [claudeSection(status), agentsSection(agents), planSection(status)]],
-    ["chat", t("Chat"), [chatProvidersSection(chatKeys, keyChanged, claudeCode), localSection(customKey)]],
-    ["media", t("Media and voice"), [general.voice, mediaModelsSection(fork)]],
-    ["phone", t("Android phone"), [phoneSection(settings.phoneLink ?? false, toggle, settings)]],
-    ["shortcuts", t("Shortcuts"), shortcutsSection(shortcutReport)],
-  ]));
-}
-
-// ── Layout: categories on the side, a search over every card ──────────────────
-
-/** The category on screen; kept across redraws (a language change redraws all). */
-let current = "general";
-
-function layout(panels: [id: string, title: string, cards: HTMLElement[]][]): HTMLElement {
-  const content = h("main", { class: "content" });
-  const nav = h("nav", { class: "nav", "aria-label": t("Settings") });
-  const empty = h("div", { class: "hint empty" });
-  const search = h("input", {
-    type: "search",
-    class: "search",
-    placeholder: t("Search settings"),
-    "aria-label": t("Search settings"),
-    spellcheck: "false",
-    autocomplete: "off",
-  }) as HTMLInputElement;
-
-  const views = panels.map(([id, title, cards]) => {
-    const panel = h("div", { class: "panel" }, h("h1", { text: title }), ...cards);
-    const button = h("button", { class: "nav-item", text: title }) as HTMLButtonElement;
-    button.addEventListener("click", () => {
-      current = id;
-      search.value = "";
-      show();
-      content.scrollTop = 0;
-    });
-    nav.append(button);
-    content.append(panel);
-    return { id, title, panel, button };
-  });
-  content.append(empty);
-
-  // Up and down move between the categories, as in a list.
-  nav.addEventListener("keydown", (e) => {
-    const at = views.findIndex((v) => v.button === document.activeElement);
-    if (at < 0 || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
-    e.preventDefault();
-    const next = views[(at + (e.key === "ArrowDown" ? 1 : views.length - 1)) % views.length];
-    next.button.focus();
-    next.button.click();
-  });
-  search.addEventListener("input", show);
-  search.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && search.value) {
-      e.stopPropagation();
-      search.value = "";
-      show();
-    }
-  });
-
-  /**
-   * No query: the chosen category. A query: every card that mentions it, in
-   * every category, with any folded part that mentions it opened.
-   */
-  function show() {
-    const q = search.value.trim().toLocaleLowerCase();
-    const has = (el: Element) => (el.textContent ?? "").toLocaleLowerCase().includes(q);
-    const textOnly = (el: Element) => {
-      const copy = el.cloneNode(true) as Element;
-      for (const s of copy.querySelectorAll("select")) s.remove();
-      return copy;
-    };
-    let found = false;
-    for (const v of views) {
-      const cards = [...v.panel.children].filter((c) => c.tagName === "SECTION") as HTMLElement[];
-      if (!q) {
-        v.panel.hidden = v.id !== current;
-        for (const c of cards) c.hidden = false;
-      } else {
-        const all = v.title.toLocaleLowerCase().includes(q);
-        let hits = 0;
-        for (const c of cards) {
-          c.hidden = !all && !has(c);
-          if (c.hidden) continue;
-          hits++;
-          // A list's choices don't open a fold: "mic" is not a reason to add a model.
-          if (!all) for (const d of c.querySelectorAll("details")) if (has(textOnly(d))) d.open = true;
-        }
-        v.panel.hidden = hits === 0;
-        found ||= hits > 0;
-      }
-      const on = !q && v.id === current;
-      v.button.classList.toggle("on", on);
-      if (on) v.button.setAttribute("aria-current", "page");
-      else v.button.removeAttribute("aria-current");
-    }
-    empty.hidden = !q || found;
-    empty.textContent = t("No settings match “{query}”.", { query: search.value.trim() });
-  }
-  show();
-
-  return h("div", { class: "shell" },
-    h("aside", { class: "side" },
-      h("div", { class: "brand" }, h("span", { text: "Coucou" }), h("span", { class: "version", text: version })),
-      search,
-      nav,
-      h("div", {
-        class: "hint side-foot",
-        text: t("No telemetry. Network requests only go to the services you configure yourself."),
-      }),
-    ),
-    content,
+  root.append(
+    h("h1", {}, h("span", { text: "Coucou" }), h("span", { class: "version", text: version })),
+    claudeSection(status),
+    agentsSection(agents),
+    planSection(status),
+    apiSection(hasKey),
+    chatProvidersSection(chatKeys, keyChanged, claudeCode),
+    localSection(customKey),
+    mediaModelsSection(fork),
+    activePillsSection(connected),
+    integrationsSection(present),
+    phoneSection(settings.phoneLink ?? false, toggle, settings),
+    generalSection(),
+    mochiSection(fork),
+    shortcutsSection(shortcutReport),
+    h("div", {
+      class: "hint",
+      text: t("No telemetry. Network requests only go to the services you configure yourself."),
+    }),
   );
 }
 

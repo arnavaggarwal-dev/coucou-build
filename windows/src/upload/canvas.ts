@@ -24,19 +24,6 @@ const CANCEL_BTN = { x: 290, w: 120 };
 /** Drop-zone chips (English keys, shown with `t()`). */
 const CHIPS = [N_("PDF"), N_("Images"), N_("Code"), N_("Docs")];
 
-type RGB = readonly [number, number, number]; // 0…1, as in the engine
-
-/** The white Mochi's green, used when no coloured Mochi is focused. */
-const GREEN: RGB = [52 / 255, 211 / 255, 153 / 255];
-
-/** `c` moved towards white (t > 0) or black (t < 0), as a CSS colour. */
-function shade(c: RGB, t: number, a = 1): string {
-  const to = t > 0 ? 1 : 0;
-  const k = Math.abs(t);
-  const v = c.map((x) => Math.round((x + (to - x) * k) * 255));
-  return `rgba(${v[0]},${v[1]},${v[2]},${a})`;
-}
-
 /** Mirrors the reference `rr()`: a rounded rect, radius clamped to the box. */
 function rr(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   const rad = Math.max(0, Math.min(r, w / 2, h / 2));
@@ -143,15 +130,8 @@ export class UploadCanvas {
   private ctx: CanvasRenderingContext2D | null;
   private overlay: HTMLElement;
   private sizedFor = 0;
-  /** The focused Mochi's colour (null: the white Mochi). Drives its body and
-   *  every accent, so a red Mochi eats with a red bar. */
-  tint: RGB | null = null;
-  /** And its body shape from the wardrobe ("" = the classic Mochi). */
+  /** The focused Mochi's body shape from the wardrobe ("" = the classic Mochi). */
   shape = "";
-
-  private get accent(): RGB {
-    return this.tint ?? GREEN;
-  }
 
   constructor(actions: UploadCanvasActions) {
     this.canvas = document.createElement("canvas");
@@ -220,9 +200,9 @@ export class UploadCanvas {
       const gx = USC.CARD_X + USC.CARD_W / 2;
       const gy = USC.CARD_Y + USC.CARD_H;
       const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, USC.CARD_H * 1.5);
-      g.addColorStop(0, shade(this.accent, -0.1, f.greenWash * 0.9));
-      g.addColorStop(0.55, shade(this.accent, -0.1, f.greenWash * 0.3));
-      g.addColorStop(1, shade(this.accent, 0, 0));
+      g.addColorStop(0, `rgba(40,212,130,${f.greenWash * 0.9})`);
+      g.addColorStop(0.55, `rgba(40,212,130,${f.greenWash * 0.3})`);
+      g.addColorStop(1, "rgba(40,212,130,0)");
       ctx.fillStyle = g;
       ctx.fillRect(USC.CARD_X, USC.CARD_Y, USC.CARD_W, USC.CARD_H);
     }
@@ -232,7 +212,7 @@ export class UploadCanvas {
     if (f.zoneAlpha > 0) {
       ctx.save();
       ctx.globalAlpha = f.zoneAlpha;
-      ctx.strokeStyle = f.zoneOver ? shade(this.accent, 0, 0.55) : "rgba(255,255,255,0.14)";
+      ctx.strokeStyle = f.zoneOver ? "rgba(52,212,153,0.55)" : "rgba(255,255,255,0.14)";
       ctx.lineWidth = 1.5;
       ctx.setLineDash([6, 5]);
       ctx.lineDashOffset = -wallTime * 20;
@@ -305,7 +285,7 @@ export class UploadCanvas {
       ctx.scale(f.check, f.check);
       ctx.beginPath();
       ctx.arc(0, 0, 8, 0, Math.PI * 2);
-      ctx.fillStyle = shade(this.accent, 0);
+      ctx.fillStyle = "#34D399";
       ctx.fill();
       ctx.beginPath();
       ctx.moveTo(-3.6, 0.2);
@@ -331,9 +311,12 @@ export class UploadCanvas {
     // Fill.
     const fx = lerp(x0, x1, f.progress);
     if (fx > x0 + 1) {
+      const flashGreen = `rgb(${Math.round(lerp(52, 110, f.flash))},${Math.round(
+        lerp(211, 231, f.flash),
+      )},${Math.round(lerp(153, 183, f.flash))})`;
       const g = ctx.createLinearGradient(x0, 0, fx, 0);
-      g.addColorStop(0, shade(this.accent, -0.25));
-      g.addColorStop(1, shade(this.accent, 0.3 * f.flash));
+      g.addColorStop(0, "#1FA87A");
+      g.addColorStop(1, flashGreen);
       ctx.fillStyle = g;
       rr(ctx, x0, by - 3, fx - x0, 6, 3);
       ctx.fill();
@@ -346,8 +329,8 @@ export class UploadCanvas {
           progressAt(f.t, USC.T_PROG_START, f.progEnd)) / 0.01;
       const tl = Math.max(8, Math.min(34, 8 + v * 40));
       const g = ctx.createLinearGradient(fx - tl, 0, fx, 0);
-      g.addColorStop(0, shade(this.accent, 0, 0));
-      g.addColorStop(1, shade(this.accent, 0.3, 0.6));
+      g.addColorStop(0, "rgba(52,212,153,0)");
+      g.addColorStop(1, "rgba(110,231,183,0.6)");
       ctx.save();
       ctx.filter = "blur(3px)";
       ctx.fillStyle = g;
@@ -399,15 +382,11 @@ export class UploadCanvas {
     const shape = shapeOf(this.shape);
     const { rx, ry } = bodyPath(ctx, f.morph, R, shape);
 
-    // Body: the focused Mochi's colour, flat like the island draws it.
-    if (this.tint) {
-      ctx.fillStyle = shade(this.tint, 0);
-    } else {
-      const bg = ctx.createLinearGradient(rx * 0.7, -ry * 0.9, -rx * 0.8, ry * 0.9);
-      bg.addColorStop(0, "#EDEDEF");
-      bg.addColorStop(1, "#C4C5CA");
-      ctx.fillStyle = bg;
-    }
+    // Body.
+    const bg = ctx.createLinearGradient(rx * 0.7, -ry * 0.9, -rx * 0.8, ry * 0.9);
+    bg.addColorStop(0, "#EDEDEF");
+    bg.addColorStop(1, "#C4C5CA");
+    ctx.fillStyle = bg;
     ctx.fill();
 
     // Edge shadow.
@@ -545,7 +524,7 @@ export class UploadCanvas {
       const rad = 2.2 * (1 - k * 0.5);
       ctx.beginPath();
       ctx.arc(px, py, rad, 0, Math.PI * 2);
-      ctx.fillStyle = shade(this.accent, 0, 1 - k);
+      ctx.fillStyle = `rgba(52,212,153,${1 - k})`;
       ctx.fill();
     }
   }

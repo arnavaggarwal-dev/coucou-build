@@ -57,7 +57,7 @@ You can also [build it yourself](#build-it-yourself).
 | Right-click Mochi | The wardrobe: rest the pointer on an outfit to try it on, click to keep it. **Auto** dresses him for the season (witch hat in October, Santa hat in December…). The row below picks his body shape; the same wardrobe is in Settings |
 | Drag Mochi out of the island | He moves onto your desktop and hangs out there, in his outfit, watching your cursor. Drop him back on the island to bring him home |
 | On the desktop: click / right-click / double-click Mochi | Poke him / the wardrobe / he flies home. Drag him to move him |
-| `Ctrl`+drag Mochi out of the island and drop him | He scans the screen and brings a screenshot back to the chat (**Settings → General → Quick screenshot** skips the scan) |
+| `Ctrl`+drag Mochi out of the island and drop him | He scans the screen and brings a screenshot back to the chat (**Settings → Mochi → Quick screenshot** skips the scan) |
 | Hold `Shift` while `Ctrl`+dragging him | Pick an area instead: only that part is scanned and captured. `Esc` or a right-click cancels |
 | Drag a file onto the island | Mochi turns into a box, swallows it, then offers to answer questions about it |
 | Click a file in the session ticker | Its diff opens in the island; ↗ opens the file in VS Code, ‹ or `Esc` goes back |
@@ -224,10 +224,9 @@ side (tray, errors) embeds the same two files.
 
 ## Chat and keys
 
-**Settings… → Chat → Chat providers** takes your Anthropic API key (first
-row). Keys live in the **Windows Credential Manager**, never on disk and never
-in the interface: the island can only ask whether a key exists. Same for every
-integration key.
+**Settings… → Claude** takes your Anthropic API key. Keys live in the **Windows
+Credential Manager**, never on disk and never in the interface — the island can
+only ask whether a key exists. Same for every integration key.
 
 The chat also talks to **Google AI (Gemini)**, **OpenAI** and **OpenRouter**:
 add their keys in **Settings… → Chat providers**, then click the model name
@@ -310,9 +309,8 @@ to work on the island's looks. It also serves `dev/upload-preview.html`, which
 replays the whole file-drop choreography on a loop — the one part of the UI that
 otherwise needs a real drag from Explorer to see — and `dev/recap-preview.html`,
 the weekly recap card and its shared image on a sample week. None of these pages
-ships in the app. `dev/markdown-check.html` and `dev/dictation-check.html` are
-self-checks for the chat's GitHub-style Markdown and the mic's voice detection:
-their title turns to PASS or FAIL.
+ships in the app. `dev/dictation-check.html` is a self-check for the mic's
+voice detection: its title turns to PASS or FAIL.
 
 `npm run pack` leaves two files in `windows/release/`, the same names the release
 workflow publishes:

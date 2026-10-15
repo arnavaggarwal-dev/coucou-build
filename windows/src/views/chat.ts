@@ -1,7 +1,7 @@
 // Chat view — DOM port of PromptView / ChatBubble / TypingDotsView /
 // ModelPickerView from IslandViewContent.swift.
 //
-// Answers are rendered as GitHub-style Markdown (gfm.ts). A local model
+// Answers are rendered as Markdown (markdown.ts). A local model
 // streams its answer: Rust sends `chat-delta` events with the text visible so
 // far. The model name above the text field opens the picker: provider chips,
 // then the models of the chosen provider, asked for only once it is picked.
@@ -13,7 +13,7 @@
 
 import { h, svg, clear } from "./dom";
 import { ICONS } from "./icons";
-import { codeBlock, renderReply } from "./gfm";
+import { copyButton, renderMarkdown } from "./markdown";
 import { startDictation, type Dictation, type DictationPhase } from "./dictation";
 import { generatingCard, mediaCard, releaseMedia, resetProgress } from "./media";
 import { Bridge, onEvent, type ChatContext, type ModelInfo } from "../core/bridge";
@@ -48,13 +48,13 @@ function bubble(message: ChatMessage): HTMLElement {
         "div",
         { class: "user-turn" },
         // The dropped code file, as the model got it.
-        a ? codeBlock(a.text, a.lang, `${a.name} · ${a.text.split("\n").length} lines`) : null,
+        a ? fileCard(a.text, `${a.name} · ${a.text.split("\n").length} lines`) : null,
         h("div", { class: "bubble", text: message.content }),
       ),
     );
   }
   const reply = h("div", { class: "reply" });
-  if (message.content) renderReply(reply, message.content);
+  if (message.content) renderMarkdown(reply, message.content);
   return h(
     "div",
     { class: "chat-row" },
@@ -74,6 +74,16 @@ function typingDots(): HTMLElement {
     "div",
     { class: "chat-row" },
     h("div", { class: "typing" }, h("i"), h("i"), h("i")),
+  );
+}
+
+/** A dropped text or code file, as the model got it: its name, the code, a copy button. */
+function fileCard(code: string, title: string): HTMLElement {
+  return h(
+    "div",
+    { class: "code-block" },
+    h("div", { class: "code-head" }, h("span", { class: "code-lang", text: title }), copyButton(code)),
+    h("pre", {}, h("code", { text: code })),
   );
 }
 
@@ -388,7 +398,7 @@ export function buildPrompt(onHeightChange: () => void): ViewHost {
       log.querySelector(".typing")?.parentElement?.remove();
       log.append(h("div", { class: "chat-row" }, live));
     }
-    renderReply(live, visible);
+    renderMarkdown(live, visible);
     log.scrollTop = log.scrollHeight;
   });
 

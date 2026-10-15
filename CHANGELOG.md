@@ -3,17 +3,17 @@
 ## Unreleased (this fork, on Windows and Linux 0.4.0)
 
 - **Talk to the chat**: with a speech-to-text model saved (Settings → Media and voice models, e.g. Groq's whisper-large-v3-turbo), Send is the mic while the field is empty. Your words appear as you speak, it sends when you stop talking and never sends silence; "Keep the mic on" listens again after each reply *(Windows)*
-- **Replies in GitHub-style Markdown**: tables that fit the chat, task lists, footnotes, alerts, math (KaTeX), strikethrough and GitHub's safe HTML; code with its language and Copy, and a dropped code file shown as a code card
+- A dropped code file shows in the chat as a code card, with its name and Copy
 - **Create**: image, video, speech and 3D models from any OpenAI-compatible provider, picked on the chat's "Create" chip, with Download and a full-screen preview (a turntable for 3D)
 - A model that can't see images is remembered: the chat asks to send without the image instead of failing. An x on the file chip drops the attachment, Clear starts the chat over
 - **Mochi has a name** (and so does every coloured Mochi: Calvin, Penny, Gitta, Vera, Nate, Mel, Ida, Melody), and acts out how each reply feels: happy, sad, shy, scared, proud, a little party…
-- **Music pill** *(Windows)*: what Spotify, Apple Music, YouTube Music or any player in the Windows media controls is playing, with play, pause and skip. Melody wears the cover's colour, and Mochi dances to music (not to browser videos): eyes grooving to the beat, notes flying off, and the head opening like an AirPods case, the buds shooting off to the edges of the screen and swooping back 15 seconds after the music stops
-- **More in the wardrobe**: seven more hats (cat ears, chef hat, cowboy hat, graduation cap, sprout, straw hat, top hat) and five body shapes, in the wardrobe (right-click on Mochi, Ctrl+Alt+G) and now in Settings too. The outfit stays on when the island opens
+- **Music pill** *(Windows)*: what Spotify, Apple Music, YouTube Music or any player in the Windows media controls is playing, with play, pause and skip. Melody wears the cover's colour, and Mochi dances to music (not to browser videos), with notes flying off and the head opening like an AirPods case, the buds shooting off to the edges of the screen and swooping back 15 seconds after the music stops
+- **More in the wardrobe**: seven more hats (cat ears, chef hat, cowboy hat, graduation cap, sprout, straw hat, top hat) and five body shapes, in the wardrobe (right-click on Mochi, Ctrl+Alt+G) and in Settings → Mochi. Each Mochi can wear its own look
 - **Screenshot with Mochi**: Ctrl+drag him out of the island and drop him; he scans the screen and brings a screenshot back to the chat. Shift picks an area
 - **Always allow** on Claude Code's permission card when Claude Code offers to remember the rule ("Always allow Bash(npm test:*)"); Claude Code saves it, exactly as from its own prompt
 - A card answered in the terminal or the Claude app now goes at once, not at the end of the turn
 - Claude Code's `git push` brings the GitHub card up with the push on it
-- The closed island shows what the focused Mochi is doing, or the time; "Keep island visible" keeps it there instead of hiding; auto-close from 3 s
+- "Keep island visible": at rest the island stays compact instead of hiding, showing what the focused Mochi is doing, or the time
 - The island and its windows stay out of taskbars and Alt+Tab, replacement taskbars included; hidden windows give their memory back *(Windows)*
 
 ## Unreleased

@@ -229,7 +229,6 @@ export class Island {
         if (!req) return;
         Sound.play(d === "deny" ? "blip" : "approve");
         void Bridge.approvalDecision(req.requestId, d);
-        if (d !== "deny") this.engine.celebrate();
         this.closeApproval();
       },
       answer: (answers) => {
@@ -237,7 +236,6 @@ export class Island {
         if (!req) return;
         Sound.play("approve");
         void Bridge.approvalAnswer(req.requestId, answers);
-        this.engine.celebrate();
         this.closeApproval();
       },
       answerInTerminal: () => {
@@ -936,6 +934,8 @@ export class Island {
     });
     // Settings' "Play an emote" buttons (settings/fork.ts).
     void onEvent<string>("mochi-mood", (mood) => this.playEmote(mood));
+    // Fork: sound playing, or the mic or camera in use, keeps them up (awake.rs).
+    void onEvent<boolean>("keep-awake", (on) => { this.keptAwake = on; });
 
     // Only keys typed into the island itself land here, never Escape typed in
     // a terminal — so it may fold a waiting card away, as Escape in the notch
@@ -1151,8 +1151,7 @@ export class Island {
 
     const uploadActive = this.uploadActive;
     if (uploadActive) {
-      // The focused Mochi eats the file: its colour and its shape.
-      this.uploadCanvas.tint = this.engine.bodyColor;
+      // The focused Mochi eats the file in its own shape.
       this.uploadCanvas.shape = this.engine.shape;
       this.uploadCanvas.draw(UploadSeq.frame(), nowMs / 1000);
     }
@@ -1374,8 +1373,10 @@ export class Island {
       }
     }
 
-    this.compactStatus.style.opacity = showGrid ? "1" : "0";
-    if (showGrid) this.syncCompactStatus();
+    // Only with "Keep island visible"; otherwise the closed island keeps its usual look.
+    const status = showGrid && State.settings.keepVisible;
+    this.compactStatus.style.opacity = status ? "1" : "0";
+    if (status) this.syncCompactStatus();
     // An off-screen shimmer would keep the compositor busy while hidden.
     else this.compactStatus.classList.remove("shimmer");
 
@@ -1392,6 +1393,8 @@ export class Island {
   private sleepTimer: number | null = null;
   /** Music was playing at the last frame, to see it start. */
   private musicWas = false;
+  /** Sound, a call or the camera is keeping them up (awake.rs "keep-awake"). */
+  private keptAwake = false;
   /** Each pill's state at the last redraw, to see a session start. */
   private sessions = new Map<string, BotStateName>();
   /** Chat messages sent so far (the chat starts over on a new file). */
@@ -1411,8 +1414,9 @@ export class Island {
     // A finished or failed one is done working: it must not.
     const working = (t: { state: BotStateName }) => agentActive(t.state) && t.state !== "finished" && t.state !== "error";
     if (State.tasks.some(working)) return this.noteActivity();
-    // Dancing Mochis don't nod off: while music plays, look again later.
-    if (State.musicPlaying) return this.noteActivity();
+    // Nobody nods off while anything plays (music, a video, a game, a call)
+    // or an app holds the mic or camera: look again later.
+    if (State.musicPlaying || State.nowPlaying?.playing || this.keptAwake) return this.noteActivity();
     this.setAsleep(true);
   };
 

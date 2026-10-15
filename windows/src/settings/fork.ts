@@ -1,6 +1,7 @@
-// The settings this fork adds to upstream's window: the media and voice
-// models (images, video, speech, 3D, and speech-to-text for the chat's mic),
-// each Mochi's name, and the island's wardrobe (outfits and body shapes).
+// Settings sections for the Windows and Linux additions, drawn like the
+// rest of the window: the media and voice models (images, video, speech, 3D,
+// and speech-to-text for the chat's mic), and Mochi (his name, the screenshot
+// roam, the wardrobe with outfits and body shapes, and the emote tester).
 //
 // The page's `settings` object is replaced whenever another window saves, so
 // every section reads it through `ctx.settings()`.
@@ -14,12 +15,14 @@ import { wardrobePicker } from "../views/wardrobe";
 import { h, clear } from "../views/dom";
 import { MOOD_ACTS } from "../mochi/engine";
 import { emit } from "@tauri-apps/api/event";
-import { disclosure, segmented, statusDot } from "./parts";
+import { statusDot } from "./parts";
 import { N_, t } from "../i18n/i18n";
 
 export interface ForkContext {
   settings(): Settings;
   save(): void;
+  /** The window's on/off switch. */
+  toggle(on: boolean, onChange: (v: boolean) => void): HTMLElement;
 }
 
 /** Redraws what follows other windows' saves (the media list learns keys in the background). */
@@ -261,8 +264,16 @@ export function mediaModelsSection(ctx: ForkContext): HTMLElement {
 
   void draw();
   void syncProvider();
-  // Adding a model is done once in a while: folded, unless there is none yet.
-  const addForm = disclosure("Add a model",
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: "Media and voice models" })),
+    h("div", {
+      class: "hint",
+      text: "Image, video, speech and 3D models turn your message into a file instead of answering; pick them on \"Create\" above the chat box. A speech-to-text model turns the chat's Send button into a mic while the field is empty. Keys go to the Credential Manager, one per provider.",
+    }),
+    list,
+    h("div", { class: "subhead", text: "Add a model" }),
     h("div", { class: "row" }, h("label", { text: "Provider" }), provider, endpoint),
     h("div", { class: "row" }, h("label", { text: t("Model") }), modelId),
     h("div", { class: "row" }, h("label", { text: "Makes" }), makes),
@@ -270,18 +281,14 @@ export function mediaModelsSection(ctx: ForkContext): HTMLElement {
     h("div", { class: "row" }, h("label", { text: t("API key") }), key),
     h("div", { class: "row" }, add),
     feedback,
-  );
-  addForm.open = !(ctx.settings().models ?? []).length;
-  return h(
-    "section",
-    {},
-    h("h2", {}, h("span", { text: "Media and voice models" })),
-    h("span", {
-      class: "hint",
-      text: "Image, video, speech and 3D models turn your message into a file instead of answering; pick them on \"Create\" above the chat box. A speech-to-text model turns the chat's Send button into a mic while the field is empty. Keys go to the Credential Manager, one per provider.",
-    }),
-    list,
-    addForm,
+    h("div", { class: "row" },
+      h("label", { text: "Keep the mic on" }),
+      ctx.toggle(ctx.settings().keepMicOn ?? false, (v) => {
+        ctx.settings().keepMicOn = v;
+        ctx.save();
+      }),
+    ),
+    h("div", { class: "hint", text: "After a spoken question, the mic listens again once the reply is in." }),
   );
 }
 
@@ -304,23 +311,27 @@ export function yourMochis(s: Settings): { key: string; name: string; color: str
 }
 
 /**
- * The island's wardrobe: the same picker as a right-click on Mochi, outfits
- * then body shapes. Either every Mochi wears one look, or each its own: then
- * the row of Mochis picks whom the picker dresses. Switching keeps both sets
- * (each Mochi's own looks are in wardrobe-looks.json, settings.rs). The
- * island and the desktop Mochi follow at once.
+ * Mochi: his name (the chat's persona), the screenshot roam, and the island's
+ * wardrobe, the same picker as a right-click on Mochi, outfits then body
+ * shapes. Either every Mochi wears one look, or each its own: then the row of
+ * Mochis picks whom the picker dresses. Switching keeps both sets (each
+ * Mochi's own looks are in wardrobe-looks.json, settings.rs). The island and
+ * the desktop Mochi follow at once. Last, a button per chat mood plays it on
+ * the island's Mochi, to try them out.
  */
-export function wardrobeSection(ctx: ForkContext): HTMLElement {
+export function mochiSection(ctx: ForkContext): HTMLElement {
   let who = MAIN_MOCHI;
-  const mode = segmented(t("Wardrobe"), [
+  const mode = h("select", {}) as HTMLSelectElement;
+  for (const [value, text] of [
     ["perMochi", t("Each Mochi has its own outfit")],
     ["all", t("Same outfit for every Mochi")],
-  ], (value) => {
-    ctx.settings().wardrobeMode = value;
+  ]) mode.append(h("option", { value, text }));
+  mode.addEventListener("change", () => {
+    ctx.settings().wardrobeMode = mode.value;
     ctx.save();
     sync();
   });
-  const mochis = h("div", { class: "row", style: "flex-wrap:wrap" });
+  const mochis = h("div", { class: "row" });
   const choose = (change: { outfit?: string; shape?: string }) => {
     setLook(ctx.settings(), who, change);
     ctx.save();
@@ -336,15 +347,15 @@ export function wardrobeSection(ctx: ForkContext): HTMLElement {
   function sync() {
     const s = ctx.settings();
     const all = parseWardrobeMode(s.wardrobeMode) === "all";
-    mode.set(all ? "all" : "perMochi");
+    mode.value = all ? "all" : "perMochi";
     const list = yourMochis(s);
     if (!list.some((m) => m.key === who)) who = MAIN_MOCHI;
     mochis.style.display = all ? "none" : "";
-    mochis.replaceChildren(...list.map((m) => {
+    mochis.replaceChildren(h("label", {}), ...list.map((m) => {
       const button = h(
         "button",
         { class: m.key === who ? "primary" : "", "aria-pressed": String(m.key === who) },
-        h("i", { class: "dot", style: `background:${m.color};width:10px;height:10px;margin-right:6px` }),
+        h("i", { class: "dot", style: `background:${m.color};margin-right:6px` }),
         m.name,
       );
       button.addEventListener("click", () => {
@@ -357,17 +368,32 @@ export function wardrobeSection(ctx: ForkContext): HTMLElement {
   }
   syncWardrobe = sync;
   sync();
+
+  const s = ctx.settings();
   return h(
     "section",
     {},
-    h("h2", {}, h("span", { text: t("Wardrobe") })),
-    mode.el,
+    h("h2", {}, h("span", { text: "Mochi" })),
+    h("div", { class: "row" },
+      h("label", { text: "Mochi's name" }),
+      nameInput(s.mochiName ?? "", "Mochi", (v) => { ctx.settings().mochiName = v; }, ctx.save),
+    ),
+    h("div", { class: "hint", text: "What the chat calls itself, and the main Mochi's pill when nothing runs. Each coloured Mochi's name is under Integrations." }),
+    h("div", { class: "row" },
+      h("label", { text: "Quick screenshot" }),
+      ctx.toggle(s.quickScan ?? false, (v) => {
+        ctx.settings().quickScan = v;
+        ctx.save();
+      }),
+    ),
+    h("div", { class: "hint", text: "Ctrl+drag Mochi out of the island and drop him for a screenshot; this skips his scan and captures right after the drop." }),
+    h("div", { class: "subhead", text: t("Wardrobe") }),
+    h("div", { class: "row" }, h("label", { text: t("Wardrobe") }), mode),
     mochis,
     h("div", { class: "hint" }, picker.note),
     picker.el,
-    // Plays each chat mood on the island's Mochi, to try them out.
-    h("h3", { text: t("Play an emote") }),
-    h("div", { class: "row", style: "flex-wrap:wrap" }, ...Object.keys(MOOD_ACTS).map((mood) => {
+    h("div", { class: "subhead", text: t("Play an emote") }),
+    h("div", { class: "row" }, ...Object.keys(MOOD_ACTS).map((mood) => {
       const button = h("button", { text: mood });
       button.addEventListener("click", () => void emit("mochi-mood", mood));
       return button;

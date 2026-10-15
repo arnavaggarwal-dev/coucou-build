@@ -172,7 +172,7 @@ export const MOOD_ACTS: Record<string, (e: BotEngine) => void> = {
 const MAX_PARTICLES = 48;
 const CONFETTI = ["#FF4D6D", "#F7B32B", "#3DDC97", "#4CC9F0", "#B388FF", "#FF8CC6"];
 /** How fast a particle falls instead of floating (fraction of R per s²). */
-const FALL: Partial<Record<Particle["type"], number>> = { sweat: 0.6, confetti: 1.5 };
+const FALL: Partial<Record<Particle["type"], number>> = { confetti: 1.5 };
 const MARK_COLOR: Record<string, string> = { "!": "#FFD23F", "?": "#8FD3FF" };
 /** The hype's fire, back to front: size, colour at the body, colour at the tips. */
 const FIRE: [number, string, string][] = [
@@ -596,30 +596,29 @@ export class BotEngine {
 
     switch (emote) {
       case "love":
-        this.anim("blush", hold(1, duration, 0, 300, 300));
-        this.burst("heart", 8, 1);
-        this.anim("oy", [[-0.14, 160, Ease.out], [0, 300, Ease.back]]);
+        this.anim("blush", [
+          [1, 300, Ease.out], [1, (duration - 0.6) * 1000, Ease.lin], [0, 300, Ease.inOut],
+        ]);
+        this.emit("heart", 4);
+        this.anim("oy", [[-0.1, 160, Ease.out], [0, 300, Ease.back]]);
         break;
       case "surprised":
-        this.anim("oy", [[-0.34, 140, Ease.out], [0, 380, Ease.back]]);
-        this.anim("es", [[1.3, 120, Ease.out], [1, 500, Ease.inOut]]);
-        this.emit("mark", 1, { c: "!", x: 0.62, y: -0.95, vx: 0, vy: -0.08, life: 1.3, size: 0.3 });
+        this.anim("oy", [[-0.3, 140, Ease.out], [0, 380, Ease.back]]);
+        this.anim("es", [[1.25, 120, Ease.out], [1, 500, Ease.inOut]]);
         break;
       case "proud":
-        // Chest out, chin up, stars.
-        this.burst("star", 6, 0.9);
-        this.anim("sy", hold(1.12, duration, 1, 220));
-        this.anim("sx", hold(0.95, duration, 1, 220));
-        this.anim("pitch", hold(0.16, duration, 0, 220));
-        this.anim("tilt", hold(-0.14, duration, 0, 220, 280));
-        this.anim("blush", hold(0.7, duration, 0, 250, 300));
+        this.emit("star", 5);
+        this.anim("tilt", [
+          [-0.14, 220, Ease.out], [-0.14, (duration - 0.5) * 1000, Ease.lin], [0, 280, Ease.inOut],
+        ]);
+        this.anim("blush", [
+          [0.7, 250, Ease.out], [0.7, (duration - 0.5) * 1000, Ease.lin], [0, 300, Ease.inOut],
+        ]);
         break;
       case "wink":
-        // Waves hello: the wave sways the body (update) and raises a hand.
-        this.waveStart = t + 0.1;
-        this.waveUntil = t + duration - 0.3;
-        this.anim("hands", hold(1, duration, 0, 250, 250));
-        this.anim("oy", [[-0.1, 160, Ease.out], [0, 300, Ease.back]]);
+        this.anim("tilt", [
+          [0.12, 160, Ease.out], [0.12, (duration - 0.4) * 1000, Ease.lin], [0, 240, Ease.inOut],
+        ]);
         break;
       case "yawn":
         this.anim("sy", [[1.12, 500, Ease.inOut], [1, 500, Ease.inOut]]);
@@ -708,23 +707,6 @@ export class BotEngine {
     for (let i = 0; i < count; i++) {
       if (this.particles.length >= MAX_PARTICLES) return;
       const isZ = type === "z";
-      if (type === "sweat") {
-        // A bead forms at a temple and runs down, not up like the others.
-        const side = Math.random() < 0.5 ? -1 : 1;
-        this.particles.push({
-          type,
-          x: side * (0.55 + Math.random() * 0.1),
-          y: -0.45 - Math.random() * 0.1,
-          vx: side * 0.08,
-          vy: 0.05,
-          age: -i * 0.14,
-          life: 1.1 + Math.random() * 0.3,
-          rot: 0,
-          size: 0.13 + Math.random() * 0.05,
-          ...o,
-        });
-        continue;
-      }
       this.particles.push({
         type,
         x: (Math.random() - 0.5) * 0.9 + (isZ ? 0.55 : 0),
@@ -855,14 +837,6 @@ export class BotEngine {
     }
     if (this.state === "dizzy") { ty = Math.sin(t * 9) * 0.25; }
 
-    // Dancing: the eyes groove to the beat instead of following the cursor.
-    if (this.dancingLevel > 0.001 && !this.isMini) {
-      const beat = (n * DANCE_BPM) / 60;
-      const l = this.dancingLevel;
-      ty += (0.6 * Math.sin((Math.PI * beat) / 2) - ty) * l;
-      tp += (0.12 - 0.22 * Math.abs(Math.cos(Math.PI * beat)) - tp) * l;
-    }
-
     // Mini bots never follow the mouse — they wander.
     if (this.isMini && !this.cfg.look && !this.cfg.scans && this.state !== "sleeping" && this.state !== "dizzy") {
       if (n > this.miniLookNextTime) {
@@ -892,10 +866,9 @@ export class BotEngine {
     if (!this.locks.has("oy")) this.oy += (bounce - this.oy) * kGen;
 
     if (this.cfg.breathes) {
-      // Slow, deep breaths (only sleeping breathes).
       const amp = this.isMini ? 0.07 : 0.035;
-      this.tgSy = 1 + Math.sin(t * 1.2) * amp;
-      this.tgSx = 1 - Math.sin(t * 1.2) * amp * 0.57;
+      this.tgSy = 1 + Math.sin(t * 1.8) * amp;
+      this.tgSx = 1 - Math.sin(t * 1.8) * amp * 0.57;
     } else if (this.isMini) {
       this.tgSy = 1 + Math.sin(t * 2.2) * 0.04;
       this.tgSx = 1 - Math.sin(t * 2.2) * 0.02;
@@ -1862,7 +1835,7 @@ export class BotEngine {
       const k = p.age / p.life;
       const a = k < 0.2 ? k / 0.2 : 1 - (k - 0.2) / 0.8;
       const px = cx + (p.x + p.vx * p.age) * R * 1.3;
-      // Sweat and confetti fall: they speed up as they go down.
+      // Confetti falls: it speeds up as it goes down.
       const fall = (FALL[p.type] ?? 0) * p.age * p.age;
       const py = cy + (p.y + p.vy * p.age + fall) * R * 1.3;
       const sz = R * p.size * (1 + k * 0.4);

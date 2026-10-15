@@ -4,12 +4,12 @@
 
 import { Bridge, type AgentHookStatus } from "../core/bridge";
 import { clear, h } from "../views/dom";
-import { item, renderDiff, statusDot } from "./parts";
+import { renderDiff, statusDot } from "./parts";
 import { t } from "../i18n/i18n";
 
 /** In the current language (src/i18n); the settings window redraws on a change. */
 const TEXT = {
-  get title() { return t("Other agents"); },
+  get title() { return t("Agents"); },
   get intro() {
     return t("Show other coding agents in the island. Coucou adds its entries to each agent's own config: you see the exact change and where the backup goes before anything is written, and uninstalling removes only what Coucou added.");
   },
@@ -57,7 +57,7 @@ export function agentsSection(list: AgentHookStatus[] | null): HTMLElement {
 
 function agentBlock(initial: AgentHookStatus): HTMLElement {
   let status = initial;
-  const head = h("div", {});
+  const head = h("div", { class: "row" });
   const body = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
   const block = h("div", { style: "display:flex;flex-direction:column;gap:8px" }, head, body);
 
@@ -80,18 +80,23 @@ function agentBlock(initial: AgentHookStatus): HTMLElement {
       install.disabled = true;
       install.title = TEXT.relayMissing;
     }
-    const row = item(status.name,
-      h("div", {},
-        h("div", { text: status.approvals ? TEXT.approvals : TEXT.displayOnly }),
-        h("div", { class: "path", text: status.path }),
+    head.append(
+      h("div", { style: "display:flex;align-items:center;gap:8px;min-width:132px" },
+        statusDot(status.installed),
+        h("span", { style: "font-size:12.5px", text: status.name }),
       ),
+      h("span", { class: "hint", text: status.approvals ? TEXT.approvals : TEXT.displayOnly }),
+      h("span", { class: "spacer" }),
       install,
-      status.installed
-        ? h("button", { class: "danger", text: TEXT.uninstall, onclick: () => void showPreview(false) })
-        : null,
     );
-    row.querySelector(".item-label")!.prepend(statusDot(status.installed));
-    head.append(row);
+    if (status.installed) {
+      head.append(h("button", {
+        class: "danger",
+        text: TEXT.uninstall,
+        onclick: () => void showPreview(false),
+      }));
+    }
+    body.append(h("span", { class: "path", text: status.path }));
   }
 
   async function showPreview(install: boolean) {

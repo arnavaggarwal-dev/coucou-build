@@ -45,16 +45,3 @@ let next = 1;
 (window as any).__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} };
 
 await import("../src/settings/main");
-
-// ?cat=Pills opens a category, ?q=key types a search: for screenshots.
-const params = new URLSearchParams(location.search);
-setTimeout(() => {
-  const cat = params.get("cat");
-  if (cat) [...document.querySelectorAll<HTMLButtonElement>(".nav-item")].find((b) => b.textContent === cat)?.click();
-  const q = params.get("q");
-  const search = document.querySelector<HTMLInputElement>("input.search");
-  if (q && search) {
-    search.value = q;
-    search.dispatchEvent(new Event("input"));
-  }
-}, 600);

@@ -407,14 +407,16 @@ class AppState {
   }
 
   /**
-   * What a pill is called on screen. The main pill at rest is Mochi himself;
-   * a coloured Mochi has its own name (renamed in Settings); anything else,
-   * and any pill mid-session, keeps its task's name.
+   * What a pill is called on screen: the usual label, unless the user named
+   * this Mochi in Settings (the main one only at rest, when no session runs).
    */
   pillLabel(task: AgentTask): string {
-    if (task.steps.length > 0 && task.state !== "idle") return task.name;
-    if (task.id === this.mainPillId && task.steps.length === 0) return this.mochiName;
-    return this.settings.mochiNames?.[task.id]?.trim() || DEFAULT_MOCHI_NAMES[task.id] || task.name;
+    const usual = task.id === "integration_claude" ? "VS Code" : task.name;
+    if (task.steps.length > 0 && task.state !== "idle") return usual;
+    const own = task.id === this.mainPillId
+      ? (task.steps.length === 0 ? this.settings.mochiName : "")
+      : this.settings.mochiNames?.[task.id];
+    return own?.trim() || usual;
   }
 
   /** Melody wears the current cover's colour (music.rs), her red without one. */

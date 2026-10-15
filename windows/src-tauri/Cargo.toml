@@ -60,6 +60,10 @@ windows = { version = "0.61", features = [
   # The screenshot roam: GDI grabs the screen, WIC scales and writes the PNG.
   "Win32_Graphics_Gdi",
   "Win32_Graphics_Imaging",
+  # Keep-awake (awake.rs): the speakers' peak meter and the privacy store.
+  "Win32_Media_Audio",
+  "Win32_Media_Audio_Endpoints",
+  "Win32_System_Registry",
   "Win32_System_Com",
   "Win32_System_Com_StructuredStorage",
   "Win32_Security",
