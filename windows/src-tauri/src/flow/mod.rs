@@ -198,8 +198,9 @@ struct Listening {
     take: Arc<Mutex<audio::Take>>,
     started: Instant,
     app: Option<(String, String)>,
-    /// Fork: what is already transcribed while you speak (stream.rs).
-    live: stream::Live,
+    /// Fork: what is already transcribed while you speak (stream.rs), unless
+    /// live transcription is turned off.
+    live: Option<stream::Live>,
 }
 
 fn run(app: AppHandle, flow: Arc<Flow>, rx: mpsc::Receiver<(KeyEvent, Instant)>) {
@@ -294,7 +295,9 @@ fn run(app: AppHandle, flow: Arc<Flow>, rx: mpsc::Receiver<(KeyEvent, Instant)>)
         if let Some(l) = &listening {
             let levels = {
                 let take = l.take.lock().unwrap();
-                l.live.tick(&app, &take.samples);
+                if let Some(live) = &l.live {
+                    live.tick(&app, &take.samples);
+                }
                 take.meter.levels
             };
             let _ = app.emit_to(pill::LABEL, "pill-bands", levels);
@@ -334,7 +337,8 @@ fn begin(app: &AppHandle, flow: &Arc<Flow>) -> Option<Listening> {
         Ok(capture) => {
             let app_front = os::foreground_app().filter(|(id, _)| !is_shell(id));
             pill::update(app, |s| s.phase = "listening".into());
-            Some(Listening { capture, take, started: Instant::now(), app: app_front, live: stream::Live::new() })
+            let live = flow.store.lock().unwrap().prefs.stream.then(stream::Live::new);
+            Some(Listening { capture, take, started: Instant::now(), app: app_front, live })
         }
         Err(err) => {
             crate::log::line(format!("flow: microphone: {err}"));
@@ -388,7 +392,7 @@ fn finish(app: &AppHandle, flow: &Arc<Flow>, mut l: Listening, busy: Arc<AtomicB
         busy.store(true, Ordering::Relaxed);
         // Fork: only what was said since the last stretch written while you
         // spoke is left for the model.
-        let (so_far, upto) = l.live.finish();
+        let (so_far, upto) = l.live.as_ref().map(stream::Live::finish).unwrap_or_default();
         let result = process(&app, &flow, &samples[upto.min(samples.len())..], &so_far, front.as_ref(), seconds);
         busy.store(false, Ordering::Relaxed);
         if let Err(err) = result {

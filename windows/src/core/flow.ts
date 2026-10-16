@@ -38,6 +38,8 @@ export interface FlowPrefs {
   voice: boolean;
   voiceOutput: VoiceOutput;
   voiceGender: "female" | "male";
+  /** Fork: transcribe while you speak, the words shown in the pill. */
+  stream: boolean;
 }
 
 export type ModelState =

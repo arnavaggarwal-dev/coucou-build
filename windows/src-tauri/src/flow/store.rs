@@ -107,6 +107,9 @@ pub struct Prefs {
     pub voice_output: String,
     /// The ElevenLabs voice: "female" or "male".
     pub voice_gender: String,
+    /// Fork: transcribe while you speak (flow/stream.rs), the words shown in
+    /// the pill as they come. On unless turned off.
+    pub stream: bool,
 }
 
 impl Default for Prefs {
@@ -124,6 +127,7 @@ impl Default for Prefs {
             voice: false,
             voice_output: "system".into(),
             voice_gender: "female".into(),
+            stream: true,
         }
     }
 }

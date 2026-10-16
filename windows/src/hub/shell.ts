@@ -83,6 +83,7 @@ const DEFAULT_STATUS: FlowStatus = {
   prefs: {
     enabled: false, key: "right_ctrl", edge: "bottom", mic: "", keepDays: 30, cleanup: false,
     defaultStyle: "natural", summaryEngine: "claude", openAtLaunch: true, voice: false, voiceOutput: "system", voiceGender: "female",
+    stream: true,
   },
   models: { parakeet: { state: "missing" }, downloadMb: 700 },
   keys: "ok",

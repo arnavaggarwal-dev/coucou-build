@@ -56,6 +56,8 @@ export function flowCards(ctx: HubContext): HTMLElement[] {
         select(keys, prefs.key, (key) => void ctx.setPrefs((p) => (p.key = key)).then(() => ctx.navigate("flowsettings")))),
     item(t("Where the pill is"), null, seg(t("Where the pill is"), edges, prefs.edge, (edge) => void ctx.setPrefs((p) => (p.edge = edge)))),
     item(t("Hands-free"), t("Tap twice, speak as long as you like, tap once to paste."), keyKeycap(wayland ? "wayland" : prefs.key, status.platform, true)),
+    item(t("Live transcription"), t("Words appear in the pill as you speak, and the paste comes faster when you let go. Uses more of the processor while you talk."),
+      toggle(prefs.stream, (on) => void ctx.setPrefs((p) => (p.stream = on)))),
     item(t("Paste the last dictation again"), t("When the words went to the wrong place."), button(t("Paste again"), () => void FlowBridge.pasteAgain())),
     item(t("Cancel a dictation"), null, keycap(t("Esc"))),
     wayland

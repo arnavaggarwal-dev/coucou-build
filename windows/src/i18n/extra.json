@@ -4735,6 +4735,28 @@
    "pt-BR": "Respondido pelo Claude Code: a chave da API do Claude está ausente ou sem crédito.",
    "ru": "Ответил Claude Code: ключа Claude API нет или на нём закончились средства.",
    "id": "Dijawab oleh Claude Code: kunci API Claude tidak ada atau kreditnya habis."
+  },
+  "Live transcription": {
+   "zh-Hans": "实时转写",
+   "hi": "लाइव ट्रांसक्रिप्शन",
+   "es": "Transcripción en directo",
+   "ar": "النسخ المباشر",
+   "fr": "Transcription en direct",
+   "bn": "লাইভ ট্রান্সক্রিপশন",
+   "pt-BR": "Transcrição ao vivo",
+   "ru": "Расшифровка на лету",
+   "id": "Transkripsi langsung"
+  },
+  "Words appear in the pill as you speak, and the paste comes faster when you let go. Uses more of the processor while you talk.": {
+   "zh-Hans": "说话时文字就会出现在胶囊中，松开按键后粘贴更快。说话期间会占用更多处理器。",
+   "hi": "बोलते समय शब्द पिल में दिखते हैं, और कुंजी छोड़ने पर पेस्ट जल्दी होता है। बोलते समय प्रोसेसर ज़्यादा इस्तेमाल होता है।",
+   "es": "Las palabras aparecen en la píldora mientras hablas y se pegan antes al soltar. Usa más procesador mientras hablas.",
+   "ar": "تظهر الكلمات في الكبسولة أثناء حديثك، ويتم اللصق بشكل أسرع عند الإفلات. يستخدم المعالج أكثر أثناء الكلام.",
+   "fr": "Les mots apparaissent dans la pastille pendant que tu parles, et le collage arrive plus vite quand tu relâches. Utilise davantage le processeur pendant que tu parles.",
+   "bn": "কথা বলার সময় শব্দগুলো পিলে দেখা যায়, আর ছেড়ে দিলে পেস্ট দ্রুত হয়। কথা বলার সময় প্রসেসর বেশি ব্যবহার করে।",
+   "pt-BR": "As palavras aparecem na pílula enquanto você fala, e a colagem fica mais rápida ao soltar. Usa mais o processador enquanto você fala.",
+   "ru": "Слова появляются в капсуле, пока вы говорите, а вставка происходит быстрее, когда вы отпускаете клавишу. Пока вы говорите, процессор загружен сильнее.",
+   "id": "Kata-kata muncul di pil saat Anda berbicara, dan tempel lebih cepat saat dilepas. Memakai prosesor lebih banyak saat Anda berbicara."
   }
  }
 }
