@@ -41,6 +41,8 @@ pub struct PillState {
     pub enabled: bool,
     /// « OK Coucou » is talking with you.
     pub voice: Option<crate::voice::VoiceView>,
+    /// Fork: the words of the dictation transcribed so far (flow/stream.rs).
+    pub live: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -179,6 +181,10 @@ pub fn update(app: &AppHandle, change: impl FnOnce(&mut PillState)) {
         let mut s = pill.state.lock().unwrap();
         let edge_before = s.edge.clone();
         change(&mut s);
+        // Fork: the live words belong to the dictation under way.
+        if s.phase == "idle" {
+            s.live = None;
+        }
         (s.clone(), s.edge != edge_before)
     };
     let _ = app.emit_to(LABEL, "pill-state", &state);

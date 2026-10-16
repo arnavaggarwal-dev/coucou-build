@@ -14,6 +14,7 @@ pub mod paste;
 pub mod glow;
 pub mod pill;
 pub mod store;
+pub mod stream;
 pub mod text;
 
 #[cfg(windows)]
@@ -197,6 +198,8 @@ struct Listening {
     take: Arc<Mutex<audio::Take>>,
     started: Instant,
     app: Option<(String, String)>,
+    /// Fork: what is already transcribed while you speak (stream.rs).
+    live: stream::Live,
 }
 
 fn run(app: AppHandle, flow: Arc<Flow>, rx: mpsc::Receiver<(KeyEvent, Instant)>) {
@@ -289,7 +292,11 @@ fn run(app: AppHandle, flow: Arc<Flow>, rx: mpsc::Receiver<(KeyEvent, Instant)>)
         }
         // The pill's dots, about 30 times a second while you speak.
         if let Some(l) = &listening {
-            let levels = l.take.lock().unwrap().meter.levels;
+            let levels = {
+                let take = l.take.lock().unwrap();
+                l.live.tick(&app, &take.samples);
+                take.meter.levels
+            };
             let _ = app.emit_to(pill::LABEL, "pill-bands", levels);
             let _ = app.emit_to(glow::LABEL, "pill-bands", levels);
         }
@@ -327,7 +334,7 @@ fn begin(app: &AppHandle, flow: &Arc<Flow>) -> Option<Listening> {
         Ok(capture) => {
             let app_front = os::foreground_app().filter(|(id, _)| !is_shell(id));
             pill::update(app, |s| s.phase = "listening".into());
-            Some(Listening { capture, take, started: Instant::now(), app: app_front })
+            Some(Listening { capture, take, started: Instant::now(), app: app_front, live: stream::Live::new() })
         }
         Err(err) => {
             crate::log::line(format!("flow: microphone: {err}"));
@@ -379,7 +386,10 @@ fn finish(app: &AppHandle, flow: &Arc<Flow>, mut l: Listening, busy: Arc<AtomicB
     let front = l.app.clone();
     std::thread::spawn(move || {
         busy.store(true, Ordering::Relaxed);
-        let result = process(&app, &flow, &samples, front.as_ref(), seconds);
+        // Fork: only what was said since the last stretch written while you
+        // spoke is left for the model.
+        let (so_far, upto) = l.live.finish();
+        let result = process(&app, &flow, &samples[upto.min(samples.len())..], &so_far, front.as_ref(), seconds);
         busy.store(false, Ordering::Relaxed);
         if let Err(err) = result {
             crate::log::line(format!("flow: {err}"));
@@ -388,10 +398,14 @@ fn finish(app: &AppHandle, flow: &Arc<Flow>, mut l: Listening, busy: Arc<AtomicB
     });
 }
 
-fn process(app: &AppHandle, flow: &Arc<Flow>, samples: &[f32], front: Option<&(String, String)>, seconds: f64) -> Result<(), String> {
+fn process(app: &AppHandle, flow: &Arc<Flow>, samples: &[f32], so_far: &str, front: Option<&(String, String)>, seconds: f64) -> Result<(), String> {
     let started = Instant::now();
-    let transcript = speech::transcribe(samples).ok_or("the voice model is not loaded")?;
-    let raw = transcript.text.trim().to_string();
+    let tail = if samples.len() >= 16_000 / 4 {
+        speech::transcribe(samples).ok_or("the voice model is not loaded")?.text
+    } else {
+        String::new()
+    };
+    let raw = format!("{} {}", so_far.trim(), tail.trim()).trim().to_string();
     if raw.is_empty() {
         crate::log::line("flow: the model heard no words");
         pill::update(app, |s| s.phase = "idle".into());
@@ -403,7 +417,9 @@ fn process(app: &AppHandle, flow: &Arc<Flow>, samples: &[f32], front: Option<&(S
         (store.prepare(&raw), store.style_for(app_id), store.prefs.cleanup, store.words.words.clone(), store.prefs.key)
     };
     let mut written = prepared.text.clone();
-    if cleanup && style != store::Style::Verbatim && cleanup::has_key() {
+    // Fork: the clean-up per dictation only with an API key; Claude Code takes
+    // too long to start for something you wait on before every paste.
+    if cleanup && style != store::Style::Verbatim && cleanup::has_api_key() {
         let app_name = front.map(|(_, n)| n.clone());
         let cleaned = tauri::async_runtime::block_on(cleanup::clean(&prepared.text, style, app_name.as_deref(), &words));
         if text::keeps_marks(&cleaned, &prepared.snippets) {
@@ -481,7 +497,7 @@ pub fn flow_status(flow: State<Arc<Flow>>) -> FlowStatus {
             Ok(()) => "ok".into(),
             Err(why) => why.into(),
         },
-        has_claude_key: cleanup::has_key(),
+        has_claude_key: cleanup::has_api_key(),
         mics: audio::input_devices(),
         platform: if cfg!(windows) { "windows" } else { "linux" },
         autostarted: crate::launched_at_login(),

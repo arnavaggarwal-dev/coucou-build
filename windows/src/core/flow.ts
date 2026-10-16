@@ -172,6 +172,8 @@ export interface PillState {
   enabled: boolean;
   /** « OK Coucou » is talking with you. */
   voice: VoiceView | null;
+  /** Fork: the dictation's words transcribed so far, while you speak. */
+  live?: string | null;
 }
 
 export interface VoiceView {

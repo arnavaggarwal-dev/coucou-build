@@ -231,6 +231,12 @@ function bubble(): HTMLElement | null {
     else if (!v.heard) b.append(el("span", "heard", t("Listening…")));
     return b;
   }
+  // Fork: the words of the dictation so far, as they are transcribed (the end
+  // of them when they no longer fit).
+  if (!tooltip && state.live && ["listening", "locked", "thinking"].includes(state.phase)) {
+    const words = state.live.length > 70 ? `…${state.live.slice(-69)}` : state.live;
+    return el("div", "bubble live", words);
+  }
   const text = tooltip ?? (vertical() ? messageText() : null);
   return text ? el("div", "bubble", text) : null;
 }
