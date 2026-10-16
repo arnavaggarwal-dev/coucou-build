@@ -8,8 +8,8 @@ import { h, clear } from "../views/dom";
 import { t } from "../i18n/i18n";
 import { onEvent } from "../core/bridge";
 import { FlowBridge, type FlowPrefs, type FlowStatus, type ModelsStatus } from "../core/flow";
-import { hero, liveMochi } from "./hero";
-import { icon, keyLabel } from "./ui";
+import { hero } from "./hero";
+import { keyLabel } from "./ui";
 
 export type PageId =
   | "dictation" | "notes" | "insights" | "dictionary" | "snippets" | "styles" | "flowsettings"
@@ -47,12 +47,12 @@ export const NOTCH_PAGES: PageDef[] = [
 const ALL = [...FLOW_PAGES, ...NOTCH_PAGES];
 
 /**
- * Fork: one Settings item holds the island's settings, Flow's and « OK Coucou »,
- * laid out by settings/main.ts (categories, a search). Every Notch page id and
- * Flow → Settings open it, on their category.
+ * Fork: the window is the settings alone, laid out by settings/main.ts
+ * (categories, a search), with Flow as one of its categories and Flow's pages
+ * as tabs inside it. Every page id still opens there, on its category (and,
+ * for a Flow page, on its tab).
  */
-const SETTINGS_PAGES: ReadonlySet<PageId> = new Set<PageId>(["flowsettings", ...NOTCH_PAGES.map((p) => p.id)]);
-const SETTINGS_ITEM: PageDef = { id: "general", icon: "gear", title: () => t("Settings") };
+const SETTINGS_PAGES: ReadonlySet<PageId> = new Set<PageId>(ALL.map((p) => p.id));
 
 /** What a page gets to draw itself and reach the rest of the window. */
 export interface HubContext {
@@ -66,6 +66,8 @@ export interface HubContext {
   hero(page: PageId, title: string, subtitle: string | null, actions?: HTMLElement[], compact?: boolean): HTMLElement;
   /** Set by a page: called when the page is left. */
   onLeave?: () => void;
+  /** Fork: Flow's state in one line ("Ready · hold Right Ctrl"), kept up to date. */
+  statusLine: HTMLElement;
 }
 
 export type FlowPageRenderer = (container: HTMLElement, ctx: HubContext) => void | Promise<void>;
@@ -92,9 +94,8 @@ const DEFAULT_STATUS: FlowStatus = {
 
 export async function startHub(root: HTMLElement, opts: HubOptions) {
   document.body.classList.add("hub-window");
-  let current: PageId = "dictation";
+  let current: PageId = "general";
   let status: FlowStatus = (await FlowBridge.status()) ?? DEFAULT_STATUS;
-  const items = new Map<PageId, HTMLElement>();
   const statusLine = h("div", { class: "hub-status" });
   const scroll = h("div", { class: "hub-scroll" });
   let rendering = 0;
@@ -117,6 +118,7 @@ export async function startHub(root: HTMLElement, opts: HubOptions) {
       await FlowBridge.setPrefs(next);
     },
     hero: (page, title, subtitle, actions = [], compact = false) => hero(page, title, subtitle, actions, compact),
+    statusLine,
   };
 
   function drawStatus() {
@@ -144,47 +146,22 @@ export async function startHub(root: HTMLElement, opts: HubOptions) {
     ctx.onLeave?.();
     ctx.onLeave = undefined;
     current = def.id;
-    const lit = SETTINGS_PAGES.has(current) ? SETTINGS_ITEM.id : current;
-    for (const [id, el] of items) el.classList.toggle("on", id === lit);
     const token = ++rendering;
     const page_ = h("div", { class: "hub-page" });
-    const renderer = opts.flowPages[def.id];
-    const isSettings = SETTINGS_PAGES.has(def.id);
-    if (!isSettings && renderer) {
-      await renderer(page_, ctx);
-    } else {
-      const container = h("div", { id: "settings-root" });
-      page_.append(container);
-      await opts.renderNotch(def.id, container, ctx);
-    }
+    const container = h("div", { id: "settings-root" });
+    page_.append(container);
+    await opts.renderNotch(def.id, container, ctx);
     if (token !== rendering) return;
     // The settings scroll inside their own layout, edge to edge in the panel.
-    scroll.classList.toggle("settings-host", isSettings);
+    scroll.classList.toggle("settings-host", SETTINGS_PAGES.has(def.id));
     clear(scroll);
     scroll.append(page_);
     scroll.scrollTop = 0;
   }
 
-  // ── The sidebar ──
-  const side = h("nav", { class: "hub-side" });
-  const logo = h("canvas", {});
-  side.append(h("div", { class: "hub-brand" }, logo, h("span", { text: "Coucou" })));
-  liveMochi(logo as HTMLCanvasElement);
-  const group = (title: string, pages: PageDef[]) => {
-    side.append(h("div", { class: "hub-group", text: title }));
-    for (const p of pages) {
-      const b = h("button", { class: "hub-item", onclick: () => void show(p.id) });
-      b.append(icon(p.icon), h("span", { text: p.title() }));
-      items.set(p.id, b);
-      side.append(b);
-    }
-  };
-  group("Flow", FLOW_PAGES.filter((p) => !SETTINGS_PAGES.has(p.id)));
-  group("", [SETTINGS_ITEM]);
-  side.append(h("div", { class: "spacer" }), statusLine, h("div", { class: "hub-version", text: `Coucou ${opts.version}` }));
-
+  // Fork: no sidebar of its own; the settings' categories are the navigation.
   clear(root);
-  root.append(side, h("main", { class: "hub-panel" }, scroll));
+  root.append(h("main", { class: "hub-panel" }, scroll));
   drawStatus();
   await show(current);
 

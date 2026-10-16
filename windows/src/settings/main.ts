@@ -17,7 +17,7 @@ import {
   sanitizeDeclared, toggleDeclared, type PillDefinition,
 } from "../core/pills";
 import { h, clear } from "../views/dom";
-import { startHub, type HubContext, type PageId } from "../hub/shell";
+import { FLOW_PAGES, startHub, type HubContext, type PageId } from "../hub/shell";
 import { FLOW_PAGE_RENDERERS } from "../hub/pages";
 import { agentsSection } from "./agents";
 import { phoneSection } from "./phone";
@@ -1298,6 +1298,8 @@ async function main() {
     renderNotch: async (page, container, ctx) => {
       // Opened on another page: its category. A redraw of the same page keeps the one on screen.
       if (page !== notchPage) current = CATEGORY_OF[page] ?? "general";
+      // A Flow page opens Flow on its own tab.
+      if (FLOW_PAGES.some((p) => p.id === page)) flowTab = page === "flowsettings" ? "options" : page;
       notchPage = page;
       root = container;
       hubCtx = ctx;
@@ -1330,7 +1332,47 @@ let notchPage: PageId = "general";
 const CATEGORY_OF: Partial<Record<PageId, string>> = {
   general: "general", pills: "pills", integrations: "pills", agents: "agents", chat: "chat",
   flowsettings: "flow", voice: "voice", phone: "phone", shortcuts: "shortcuts",
+  dictation: "flow", notes: "flow", insights: "flow", dictionary: "flow", snippets: "flow", styles: "flow",
 };
+
+/** Flow's tab on screen; kept across redraws. "options" is Flow's settings. */
+let flowTab: string = "dictation";
+
+/**
+ * Fork: everything Flow in one category. Its pages (dictation, the Notetaker,
+ * statistics, dictionary, snippets, styles) are tabs, the last one its
+ * settings, under the line that says whether dictation is ready.
+ */
+function flowPanel(ctx: HubContext): HTMLElement[] {
+  const tabs = h("div", { class: "flow-tabs", role: "tablist" });
+  const body = h("div", { class: "flow-body" });
+  const pages: [string, string][] = [
+    ...FLOW_PAGES.filter((p) => p.id !== "flowsettings").map((p) => [p.id, p.title()] as [string, string]),
+    ["options", t("Settings")],
+  ];
+  const buttons = new Map<string, HTMLElement>();
+  let token = 0;
+  const open = async (id: string) => {
+    flowTab = id;
+    for (const [tab, b] of buttons) b.classList.toggle("on", tab === id);
+    ctx.onLeave?.();
+    ctx.onLeave = undefined;
+    const mine = ++token;
+    const page = h("div", { class: "flow-page" });
+    if (id === "options") page.append(...flowCards(ctx));
+    else await FLOW_PAGE_RENDERERS[id as PageId]?.(page, ctx);
+    if (mine !== token) return;
+    clear(body);
+    body.append(page);
+  };
+  for (const [id, title] of pages) {
+    const b = h("button", { class: "flow-tab", role: "tab", text: title, onclick: () => void open(id) });
+    buttons.set(id, b);
+    tabs.append(b);
+  }
+  void open(pages.some(([id]) => id === flowTab) ? flowTab : "dictation");
+  return [h("div", { class: "flow-head" }, ctx.statusLine, tabs), body];
+}
 
 /** Reads what the sections of the Notch page show and draws them. */
 async function render() {
@@ -1384,7 +1426,7 @@ async function render() {
     ["agents", t("Agents"), [claudeSection(status), agentsSection(agents), planSection(status)]],
     ["chat", t("Chat"), [chatProvidersSection(chatKeys, keyChanged, claudeCode), localSection(customKey)]],
     ...(hubCtx ? [
-      ["flow", t("Dictation"), flowCards(hubCtx)],
+      ["flow", "Flow", flowPanel(hubCtx)],
       ["voice", "OK Coucou", voiceCards(hubCtx)],
     ] as [string, string, HTMLElement[]][] : []),
     ["media", t("Media and voice"), [general.voice, mediaModelsSection(fork)]],

@@ -11,6 +11,7 @@
 pub mod cleanup;
 pub mod logic;
 pub mod paste;
+pub mod glow;
 pub mod pill;
 pub mod store;
 pub mod text;
@@ -119,6 +120,7 @@ pub fn setup(app: &AppHandle) {
     let flow = Arc::new(Flow { store: Mutex::new(Store::load()), running: Mutex::new(None) });
     app.manage(flow.clone());
     pill::setup(app);
+    glow::setup(app);
     let prefs = flow.store.lock().unwrap().prefs.clone();
     pill::update(app, |s| {
         s.edge = pill::edge_name(prefs.edge).into();
@@ -289,6 +291,7 @@ fn run(app: AppHandle, flow: Arc<Flow>, rx: mpsc::Receiver<(KeyEvent, Instant)>)
         if let Some(l) = &listening {
             let levels = l.take.lock().unwrap().meter.levels;
             let _ = app.emit_to(pill::LABEL, "pill-bands", levels);
+            let _ = app.emit_to(glow::LABEL, "pill-bands", levels);
         }
     }
     pill::update(&app, |s| s.phase = "idle".into());

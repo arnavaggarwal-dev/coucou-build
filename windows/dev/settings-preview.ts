@@ -46,10 +46,8 @@ let next = 1;
 
 await import("../src/settings/main");
 
-// The window opens on Flow's Dictation: go to Settings. Then ?cat=Pills opens
-// a category, ?q=key types a search: for screenshots.
+// ?cat=Pills opens a category, ?q=key types a search: for screenshots.
 const params = new URLSearchParams(location.search);
-setTimeout(() => [...document.querySelectorAll<HTMLButtonElement>(".hub-item")].at(-1)?.click(), 300);
 setTimeout(() => {
   const cat = params.get("cat");
   if (cat) [...document.querySelectorAll<HTMLButtonElement>(".nav-item")].find((b) => b.textContent === cat)?.click();

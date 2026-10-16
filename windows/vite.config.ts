@@ -65,6 +65,8 @@ export default defineConfig({
         settings: resolve(__dirname, "settings.html"),
         mochi: resolve(__dirname, "mochi.html"),
         pill: resolve(__dirname, "pill.html"),
+        // Fork: the glow round the pointer while Flow records (flow/glow.rs).
+        glow: resolve(__dirname, "glow.html"),
         // The screen overlay: screenshot roam, AirPods flight, media preview.
         roam: resolve(__dirname, "roam.html"),
       },

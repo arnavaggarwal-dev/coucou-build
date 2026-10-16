@@ -182,6 +182,8 @@ pub fn update(app: &AppHandle, change: impl FnOnce(&mut PillState)) {
         (s.clone(), s.edge != edge_before)
     };
     let _ = app.emit_to(LABEL, "pill-state", &state);
+    // Fork: the glow round the pointer while the microphone records.
+    super::glow::set(app, matches!(state.phase.as_str(), "listening" | "locked") || state.note_started_at.is_some());
     let visible = state.enabled || state.note_started_at.is_some() || state.announcement.is_some() || state.voice.is_some() || state.phase != "idle";
     let was = pill.shown.swap(visible, Ordering::Relaxed);
     if visible && (!was || edge_changed) {

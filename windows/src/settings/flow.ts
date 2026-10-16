@@ -8,7 +8,7 @@ import { t } from "../i18n/i18n";
 import { Bridge } from "../core/bridge";
 import { FlowBridge, type Edge, type FlowKey, type VoiceOutput } from "../core/flow";
 import type { HubContext } from "../hub/shell";
-import { keyKeycap, keycap, number } from "../hub/ui";
+import { keyKeycap, keycap } from "../hub/ui";
 import { modelsControl } from "../hub/pages/flowsettings";
 import { card, item, segmented, toggle } from "./parts";
 
@@ -47,8 +47,9 @@ export function flowCards(ctx: HubContext): HTMLElement[] {
   ];
   const edges: [Edge, string][] = [["bottom", t("Bottom")], ["left", t("Left")], ["right", t("Right")]];
   const wayland = status.keys === "wayland";
+  // Fork: turning dictation on and the Parakeet download live on Flow's
+  // Dictation tab only, so they aren't here twice.
   const keysCard = card(t("Keys"), null,
-    item(t("Hold a key to dictate anywhere"), null, toggle(prefs.enabled, (on) => void ctx.setPrefs((p) => (p.enabled = on)))),
     wayland
       ? item(t("Hold to dictate"), null, keyKeycap("wayland", status.platform))
       : item(t("Hold to dictate"), prefs.key === "right_alt" ? t("On a keyboard with AltGr, the right Alt types characters: pick another key.") : null,
@@ -92,10 +93,6 @@ export function flowCards(ctx: HubContext): HTMLElement[] {
     keysCard,
     card(t("Microphone"), null,
       item(t("Microphone"), t("The one Coucou listens to for dictation and calls."), select(mics, prefs.mic, (mic) => void ctx.setPrefs((p) => (p.mic = mic))))),
-    card(t("Recognition"), null,
-      item(t("Parakeet, on your computer"), t("The most accurate, offline, 25 languages. Downloaded once (about {0} MB).", { 0: number(status.models.downloadMb) }), modelsControl(ctx)),
-      note(t("Your voice never leaves this computer: Parakeet turns it into text here, and the recording is dropped as soon as it is pasted.")),
-    ),
     card(t("Notetaker"), null,
       item(t("Summaries"), t("With Claude, the transcript (never the audio) goes to Anthropic with your key from Notch → Chat."),
         select([["claude", t("Claude (your key)")], ["off", t("No summary")]], prefs.summaryEngine, (engine) => void ctx.setPrefs((p) => (p.summaryEngine = engine)))),

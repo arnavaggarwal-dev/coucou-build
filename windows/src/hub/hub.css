@@ -138,7 +138,8 @@ body.hub-window {
 .hub-panel {
   flex: 1 1 auto;
   min-width: 0;
-  margin: 12px 12px 12px 0;
+  /* Fork: no sidebar of the window's own, so a margin all round. */
+  margin: 12px;
   border-radius: 22px;
   background: var(--hub-panel);
   border: 1px solid var(--hub-line);
