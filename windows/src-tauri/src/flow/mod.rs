@@ -366,6 +366,11 @@ fn finish(app: &AppHandle, flow: &Arc<Flow>, mut l: Listening, busy: Arc<AtomicB
     if samples.len() < 16_000 / 4 || peak < 0.004 {
         crate::log::line("flow: too short or silent, nothing sent to the model");
         pill::update(app, |s| s.phase = "idle".into());
+        // Fork: exact silence over a real take is a muted or switched-off
+        // microphone, not a quiet voice: say so instead of doing nothing.
+        if peak == 0.0 && samples.len() >= 16_000 {
+            pill::announce(app, "mic", "#FF6B6B", t("Coucou can't hear you: the microphone is not allowed or not available."), None, 8);
+        }
         return;
     }
     pill::update(app, |s| s.phase = "thinking".into());
