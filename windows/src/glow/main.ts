@@ -1,4 +1,4 @@
-// Fork: the glow round the pointer while Flow records (flow/glow.rs moves the
+// Fork: a glowing ring round the pointer while Flow records (flow/glow.rs moves the
 // window onto the pointer). It breathes on its own and swells with the voice,
 // from the same nine levels the pill's dots use.
 
@@ -8,9 +8,11 @@ const style = document.createElement("style");
 style.textContent = `
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   #glow {
-    position: absolute; left: 50%; top: 50%; width: 64px; height: 64px;
-    margin: -32px 0 0 -32px; border-radius: 50%;
-    background: radial-gradient(circle, rgba(250, 45, 72, 0.55) 0%, rgba(250, 45, 72, 0.22) 45%, rgba(250, 45, 72, 0) 70%);
+    position: absolute; left: 50%; top: 50%; width: 40px; height: 40px;
+    margin: -20px 0 0 -20px; border-radius: 50%; box-sizing: border-box;
+    border: 2px solid rgba(250, 45, 72, 0.95);
+    box-shadow: 0 0 10px 2px rgba(250, 45, 72, 0.55), inset 0 0 8px rgba(250, 45, 72, 0.35);
+    background: transparent;
     opacity: 0; transform: scale(0.6);
     transition: opacity 0.25s ease, transform 0.12s ease-out;
     animation: breathe 1.6s ease-in-out infinite;

@@ -315,6 +315,15 @@ fn build_stream(source: &Source, mut sink: impl FnMut(&[f32]) + Send + 'static) 
     let channels = supported.channels().max(1) as usize;
     let rate = supported.sample_rate();
     let format = supported.sample_format();
+    // Fork: which device and format a capture really opened, for coucou.log.
+    crate::log::line(format!(
+        "audio: opened {:?} on \"{}\" ({:?}, {} ch, {:?})",
+        source,
+        device_name(&device),
+        rate,
+        channels,
+        format
+    ));
     let config: cpal::StreamConfig = supported.into();
     let mut resampler = Resampler::new(rate);
     let mut mono: Vec<f32> = Vec::with_capacity(4096);
