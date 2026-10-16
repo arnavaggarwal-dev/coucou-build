@@ -327,6 +327,8 @@ class AppState {
   droppedFile: { name: string; path: string; ephemeral?: boolean } | null = null;
   /** What the Windows media controls say is playing (music.rs); null = nothing. */
   nowPlaying: NowPlaying | null = null;
+  /** Upstream's Parakeet is downloaded: the chat's mic transcribes with it, offline. */
+  parakeetReady = false;
   /** A `git push` Claude Code is running right now, for the GitHub card. */
   githubPush: { repo: string; state: "pushing" | "done" | "failed"; startedAt: number } | null = null;
   /** Mochi is out on the screen (screenshot roam); the island hides its own. */
@@ -411,7 +413,7 @@ class AppState {
    * this Mochi in Settings (the main one only at rest, when no session runs).
    */
   pillLabel(task: AgentTask): string {
-    const usual = task.id === "integration_claude" ? "VS Code" : task.name;
+    const usual = task.id === "integration_claude" ? pillDefinition(task.id)!.name : task.name;
     if (task.steps.length > 0 && task.state !== "idle") return usual;
     const own = task.id === this.mainPillId
       ? (task.steps.length === 0 ? this.settings.mochiName : "")
@@ -430,7 +432,7 @@ class AppState {
     return !!np?.playing && np.music && sanitizeDeclared(this.settings, this.os).activeIntegrations.includes(MUSIC_ID);
   }
 
-  /** Mochi dances: Spotify (Linux) or the Windows Music pill is playing. */
+  /** Mochi dances: Spotify or the Windows Music pill is playing. */
   get musicPlaying(): boolean {
     return this.spotifyPlaying || this.windowsMusicPlaying;
   }
@@ -448,7 +450,7 @@ class AppState {
     return this.stateOverride ?? this.focusTask?.state ?? "idle";
   }
 
-  /** Spotify plays on a declared pill: Mochi dances (Linux; never on Windows yet). */
+  /** Spotify plays on a declared pill: Mochi dances. */
   get spotifyPlaying(): boolean {
     return musicPlaying(Spotify.state, sanitizeDeclared(this.settings, this.os).activeIntegrations);
   }

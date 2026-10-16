@@ -25,7 +25,7 @@ export const PILL_CATEGORIES: { id: PillCategory; title: string }[] = [
  * Whether the pill does anything on this build:
  * - `yes`: works on Windows and Linux;
  * - `windows`: Windows only (the app behind it has no Linux build);
- * - `linux`: Linux only (what drives it is Linux's: Spotify through MPRIS);
+ * - `linux`: Linux only (what drives it is Linux's);
  * - `soon`: can be declared, shows "Coming soon" (macOS has it, this build not yet);
  * - `no`: macOS only, never offered here.
  */
@@ -72,7 +72,7 @@ const ACCENT = {
 
 export const PILL_CATALOG: readonly PillDefinition[] = [
   // ── Where you code ─────────────────────────────────────────────────────────
-  { id: "integration_claude", name: "VS Code", color: "#F5F6F8", category: "workspace",
+  { id: "integration_claude", name: "Claude Code", color: "#F5F6F8", category: "workspace",
     subtitle: N_("Integration"), source: "claudeCode", support: "yes", connect: hooks },
   // Claude Code in Cursor's terminal: the same hooks as Claude Code.
   { id: "agent_cursor", name: "Cursor", color: "#C0C4CC", category: "workspace",
@@ -133,10 +133,10 @@ export const PILL_CATALOG: readonly PillDefinition[] = [
   // Music pill had this id; it has no Windows or Linux source of its own.
   { id: "integration_music", name: "Music", color: "#FA2D48", category: "service",
     subtitle: N_("Integration"), source: "n8n", support: "windows", connect: none },
-  // Spotify's MPRIS interface on the session bus (src-tauri/src/spotify.rs).
-  // Windows has nothing to read it from yet.
+  // Spotify through MPRIS on Linux and the system media controls on Windows
+  // (src-tauri/src/spotify.rs).
   { id: "integration_spotify", name: "Spotify", color: "#1DB954", category: "service",
-    subtitle: N_("Integration"), source: "n8n", support: "linux", connect: none },
+    subtitle: N_("Integration"), source: "n8n", support: "yes", connect: none },
 ];
 
 /** The always-on pill unless the user picks another workspace tool. */

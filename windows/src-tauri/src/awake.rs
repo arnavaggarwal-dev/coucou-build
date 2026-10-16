@@ -86,11 +86,15 @@ unsafe fn in_use(capability: &str) -> bool {
     let Some(root) = reg::open(HKEY_CURRENT_USER, &path) else {
         return false;
     };
+    // Coucou itself doesn't count: « OK Coucou » keeps the microphone open.
+    let own = std::env::current_exe().ok().map(|p| p.to_string_lossy().replace('\\', "#").to_lowercase());
     reg::subkeys(&root).iter().any(|name| {
         let Some(app) = reg::open(root.0, name) else { return false };
         if name == "NonPackaged" {
-            // Desktop apps, one key per executable path.
-            reg::subkeys(&app).iter().any(|exe| reg::open(app.0, exe).is_some_and(|k| reg::holding(&k)))
+            // Desktop apps, one key per executable path, its backslashes written as '#'.
+            reg::subkeys(&app).iter().any(|exe| {
+                own.as_deref() != Some(exe.to_lowercase().as_str()) && reg::open(app.0, exe).is_some_and(|k| reg::holding(&k))
+            })
         } else {
             reg::holding(&app)
         }

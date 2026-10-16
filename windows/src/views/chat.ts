@@ -414,6 +414,8 @@ export function buildPrompt(onHeightChange: () => void): ViewHost {
     if (document.hidden) dictation?.cancel();
   });
   const sttModel = () => (State.settings.models ?? []).find((m) => m.output === "stt") ?? null;
+  /** Parakeet (Flow dictation's, on this computer) first, else a saved speech-to-text model. */
+  const canTalk = () => State.parakeetReady || !!sttModel();
   const chatOnScreen = () => State.mode === "expanded" && State.view === "prompt";
   const micFailed = (message: string) => {
     State.noteMessage = message;
@@ -474,7 +476,7 @@ export function buildPrompt(onHeightChange: () => void): ViewHost {
 
   /** The one button's face: mic, listening (with the level), transcribing, or Send. */
   function drawButton() {
-    const mic = !!dictation || (!input.value?.trim() && !!sttModel() && making() !== "3d");
+    const mic = !!dictation || (!input.value?.trim() && canTalk() && making() !== "3d");
     const face = !mic ? "send" : micPhase ?? "mic";
     input.readOnly = !!dictation;
     if (send.dataset.face === face) return;
@@ -486,7 +488,7 @@ export function buildPrompt(onHeightChange: () => void): ViewHost {
     const stt = sttModel();
     send.title = {
       send: t(STRINGS.send),
-      mic: `Speak instead of typing (${stt?.label || stt?.model || "speech to text"})`,
+      mic: `Speak instead of typing (${State.parakeetReady ? "Parakeet" : stt?.label || stt?.model || "speech to text"})`,
       listening: "Listening: click to send now, Esc to cancel",
       transcribing: "Writing down what you said… Esc to cancel",
     }[face];
@@ -570,7 +572,7 @@ export function buildPrompt(onHeightChange: () => void): ViewHost {
       onHeightChange();
       input.focus();
       // Hands-free: the reply is in, listen for the next question.
-      if (wasSpoken && State.settings.keepMicOn && chatOnScreen() && sttModel()) void startMic(true);
+      if (wasSpoken && State.settings.keepMicOn && chatOnScreen() && canTalk()) void startMic(true);
     }
   }
 

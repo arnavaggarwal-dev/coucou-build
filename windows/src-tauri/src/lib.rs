@@ -10,6 +10,7 @@ mod codex_plan;
 mod config_file;
 mod desktop;
 mod files;
+mod flow;
 mod github;
 mod hooks;
 mod i18n;
@@ -21,6 +22,7 @@ mod log;
 mod media;
 mod music;
 mod net;
+mod notes;
 mod openai_compat;
 mod phone_link;
 mod pipe;
@@ -36,8 +38,10 @@ mod settings;
 mod shortcuts;
 mod shot;
 mod sounds;
+mod speech;
 mod spotify;
 mod tray;
+mod voice;
 mod watchdog;
 #[cfg(windows)]
 mod webview_drop;
@@ -159,8 +163,8 @@ fn set_system_languages(app: AppHandle, languages: Vec<String>) {
 /// settings window's title. The webviews switch on their own.
 fn language_changed(app: &AppHandle) {
     tray::retitle(app);
-    if let Some(window) = app.get_webview_window("settings") {
-        let _ = window.set_title(&i18n::t("Settings — Coucou"));
+    if let Some(window) = app.get_webview_window(HUB_LABEL) {
+        let _ = window.set_title("Coucou");
     }
 }
 
@@ -202,6 +206,26 @@ fn reposition(app: AppHandle, shared: State<Shared>) {
     let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
     island::apply_geometry(&app, &pref, collapsed);
 }
+
+/// The panel is laid out in CSS px against the window's own scale. If the webview
+/// reports a different devicePixelRatio (it ends up bigger than the window and gets
+/// cut), correct its zoom so one CSS px is one logical px again.
+#[tauri::command]
+fn fit_zoom(app: AppHandle, dpr: f64) -> bool {
+    let Some(win) = island::window(&app) else { return false };
+    let scale = win.scale_factor().unwrap_or(1.0);
+    static ZOOM: std::sync::Mutex<f64> = std::sync::Mutex::new(1.0);
+    let mut zoom = ZOOM.lock().unwrap();
+    if let Some(new_zoom) = island::calculate_zoom_correction(*zoom, scale, dpr) {
+        *zoom = new_zoom;
+        log::line(format!("webview dpr {dpr} != window scale {scale} — setting zoom {new_zoom:.3}"));
+        let _ = win.set_zoom(new_zoom);
+        true
+    } else {
+        false
+    }
+}
+
 
 /// The displays the island can be pinned to, for Settings.
 #[tauri::command]
@@ -524,8 +548,31 @@ async fn transcribe_audio(shared: State<'_, Shared>, request: tauri::ipc::Reques
     };
     let audio = bytes.clone();
     let mime = request.headers().get("x-mime").and_then(|v| v.to_str().ok()).unwrap_or("audio/webm").to_string();
+    // Fork: with Flow's Parakeet downloaded, the mic is transcribed here,
+    // offline; a saved speech-to-text model is the fallback.
+    if speech::is_ready() {
+        if let Some(samples) = wav_16k_mono(&audio) {
+            if let Ok(Some(heard)) = tauri::async_runtime::spawn_blocking(move || speech::transcribe(&samples)).await {
+                return Ok(heard.text);
+            }
+        }
+    }
     let settings = shared.settings.lock().unwrap().clone();
     media::transcribe_with(&settings, audio, &mime).await
+}
+
+/// The chat mic's recording (views/dictation.ts: a 44-byte header, 16 kHz,
+/// 16-bit mono) as samples, or None for anything else.
+fn wav_16k_mono(bytes: &[u8]) -> Option<Vec<f32>> {
+    let u16_at = |i: usize| u16::from_le_bytes([bytes[i], bytes[i + 1]]);
+    let ok = bytes.len() >= 44
+        && &bytes[0..4] == b"RIFF"
+        && &bytes[8..12] == b"WAVE"
+        && u16_at(22) == 1
+        && u32::from_le_bytes([bytes[24], bytes[25], bytes[26], bytes[27]]) == speech::SAMPLE_RATE
+        && u16_at(34) == 16
+        && &bytes[36..40] == b"data";
+    ok.then(|| bytes[44..].chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / 32768.0).collect())
 }
 
 /// The credential name of an endpoint's key (one per provider host), for
@@ -587,6 +634,9 @@ fn secret_set(app: AppHandle, key: String, value: String) -> Result<(), String> 
     }
     let before = (key == "github-token").then(|| secrets::get(&key));
     secrets::set(&key, &value)?;
+    if key == claude::KEY {
+        voice::sync(&app);
+    }
     if let Some(before) = before {
         if secrets::get(&key) != before {
             integrations::github_token_changed(&app);
@@ -599,6 +649,9 @@ fn secret_set(app: AppHandle, key: String, value: String) -> Result<(), String> 
 fn secret_clear(app: AppHandle, key: String) -> Result<(), String> {
     let had = key == "github-token" && secrets::present(&key);
     secrets::clear(&key)?;
+    if key == claude::KEY {
+        voice::sync(&app);
+    }
     if had {
         integrations::github_token_changed(&app);
     }
@@ -685,19 +738,21 @@ fn page_url(app: &AppHandle, page: &str) -> WebviewUrl {
     WebviewUrl::App(page.into())
 }
 
-/// The settings window is created hidden at launch and only ever shown and
+/// The Coucou window (Flow dictation, the Notetaker and every setting of the
+/// island), labelled "settings" since it grew out of the settings window.
+pub const HUB_LABEL: &str = "settings";
+
+/// The Coucou window is created hidden at launch and only ever shown and
 /// hidden afterwards. A WebView2 window created later — on the main thread or
 /// not — silently comes up blank in this app, so the window that works is the
 /// one that exists before the island's webview does.
 fn create_settings_window(app: &AppHandle) {
     let url = page_url(app, "settings.html");
-    match WebviewWindowBuilder::new(app, "settings", url)
+    match WebviewWindowBuilder::new(app, HUB_LABEL, url)
         .additional_browser_args(BROWSER_ARGS)
-        .title(i18n::t("Settings — Coucou"))
-        // Wide enough for the categories beside the settings (settings.css
-        // folds them into a strip above below 600 px).
-        .inner_size(760.0, 640.0)
-        .min_inner_size(460.0, 480.0)
+        .title("Coucou")
+        .inner_size(1100.0, 720.0)
+        .min_inner_size(820.0, 560.0)
         .resizable(true)
         .visible(false)
         .center()
@@ -715,24 +770,41 @@ fn create_settings_window(app: &AppHandle) {
                 }
             });
         }
-        Err(err) => log::line(format!("settings window failed: {err}")),
+        Err(err) => log::line(format!("Coucou window failed: {err}")),
     }
 }
 
 pub fn show_settings_window(app: &AppHandle) {
-    let Some(win) = app.get_webview_window("settings") else {
-        log::line("settings window missing");
+    show_hub(app, Some("general"));
+}
+
+/// Shows the Coucou window, on `page` when given ("dictation", "notes",
+/// "settings", "general", "shortcuts"…).
+pub fn show_hub(app: &AppHandle, page: Option<&str>) {
+    let Some(win) = app.get_webview_window(HUB_LABEL) else {
+        log::line("Coucou window missing");
         return;
     };
     platform::set_memory_low(&win, false);
+    if let Some(page) = page {
+        let _ = win.emit("hub-page", page.to_string());
+    }
     let _ = win.unminimize();
     let _ = win.show();
     let _ = win.set_focus();
 }
 
+/// The argument the login item starts Coucou with.
+const AUTOSTART_ARG: &str = "--autostart";
+
+/// Coucou started with the computer, not opened by the user: the window stays hidden.
+pub fn launched_at_login() -> bool {
+    std::env::args().any(|a| a == AUTOSTART_ARG)
+}
+
 #[tauri::command]
-fn open_settings_window(app: AppHandle) {
-    show_settings_window(&app);
+fn open_settings_window(app: AppHandle, page: Option<String>) {
+    show_hub(&app, Some(page.as_deref().unwrap_or("general")));
 }
 
 pub fn run() {
@@ -778,12 +850,11 @@ pub fn run() {
             // settings run where we can't listen for keys ourselves (Wayland).
             match shortcuts::from_args(&argv) {
                 Some(action) => shortcuts::dispatch(app, action),
-                None => {
-                    let _ = app.emit_to(island::WINDOW_LABEL, "tray", "open".to_string());
-                }
+                // Opening Coucou again (its shortcut, the Start menu) shows its window.
+                None => show_hub(app, None),
             }
         }))
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None));
+        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![AUTOSTART_ARG])));
     // Where no global shortcut can work, the plugin isn't even started.
     if platform::global_shortcuts_blocked().is_none() {
         builder = builder.plugin(shortcuts::plugin());
@@ -806,6 +877,7 @@ pub fn run() {
             set_island_rect,
             focus_window,
             reposition,
+            fit_zoom,
             list_monitors,
             open_url,
             open_in_vscode,
@@ -900,6 +972,40 @@ pub fn run() {
             spotify::spotify_control,
             spotify::spotify_open,
             spotify::spotify_installed,
+            flow::flow_status,
+            flow::flow_set_prefs,
+            flow::flow_history,
+            flow::flow_delete,
+            flow::flow_clear,
+            flow::flow_stats,
+            flow::flow_words,
+            flow::flow_set_words,
+            flow::flow_snippets,
+            flow::flow_set_snippets,
+            flow::flow_styles,
+            flow::flow_set_styles,
+            flow::flow_running_apps,
+            flow::flow_copy,
+            flow::flow_paste_again,
+            flow::flow_models_download,
+            flow::flow_models_remove,
+            flow::pill_state,
+            flow::pill_hot,
+            flow::pill_hover,
+            flow::pill_action,
+            notes::notes_state,
+            notes::notes_start,
+            notes::notes_stop,
+            notes::notes_rename,
+            notes::notes_rename_speaker,
+            notes::notes_toggle_todo,
+            notes::notes_delete,
+            notes::notes_summarize,
+            notes::notes_retry,
+            notes::notes_markdown,
+            notes::notes_export,
+            voice::voice_done,
+            voice::voice_say_native,
             music::music_now,
             music::music_control,
             media::guess_model_output,
@@ -920,8 +1026,10 @@ pub fn run() {
             tray::build(&handle)?;
             // Before the island: see create_settings_window.
             create_settings_window(&handle);
-            // Same rule for Mochi's desktop window and the screen overlay.
+            // Same rule for Mochi's desktop window, the dictation pill and the screen overlay.
             desktop::setup(&handle);
+            flow::setup(&handle);
+            notes::setup(&handle);
             roam::create_window(&handle, page_url(&handle, "roam.html"), BROWSER_ARGS);
 
             if let Some(win) = island::window(&handle) {
@@ -960,6 +1068,15 @@ pub fn run() {
             // Fork: sound, a call or the camera keeps the Mochis awake.
             awake::start(handle.clone());
             shortcuts::apply(&handle, &loaded.shortcuts);
+            if loaded.autostart {
+                // Login items written before 0.5 start Coucou without --autostart:
+                // writing it again adds it, so the window stays hidden at login.
+                let _ = handle.autolaunch().enable();
+            }
+            let open_window = flow::get(&handle).map(|f| f.store.lock().unwrap().prefs.open_at_launch).unwrap_or(true);
+            if open_window && !launched_at_login() {
+                show_hub(&handle, None);
+            }
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -971,6 +1088,7 @@ pub fn run() {
                 // (the watchdog then logs its exit code).
                 log::line("--- Coucou exiting ---");
                 phone_link::stop_on_exit(app);
+                notes::shutdown(app);
             }
         });
 }

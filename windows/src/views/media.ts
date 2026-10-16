@@ -2,6 +2,7 @@
 // the result (image, video or speech) with Download and a full-screen preview.
 
 import { h, svg } from "./dom";
+import { t } from "../i18n/i18n";
 import { ICONS } from "./icons";
 import { Bridge, onEvent } from "../core/bridge";
 import type { MediaFile, ModelOutput } from "../core/state";
@@ -142,7 +143,7 @@ export function mediaCard(file: MediaFile): HTMLElement {
     actions.append(full);
     if (file.kind === "image") el.addEventListener("click", () => void Bridge.mediaPreview(file));
   }
-  actions.append(downloadButton(file, "Download"));
+  actions.append(downloadButton(file, t("Download")));
   return h("div", { class: `media-card ${file.kind}` }, el, actions);
 }
 

@@ -1,6 +1,6 @@
-// The Settings window in a plain browser, on sample data: Tauri's invoke is
+// The Coucou window in a plain browser, on sample data: Tauri's invoke is
 // faked so every section draws. `npm run dev`, then open
-// /dev/settings-preview.html at 760x640 (the window's size). Not shipped.
+// /dev/settings-preview.html at 1100x720 (the window's size). Not shipped.
 
 const settings = {
   mochiName: "Mochi",
@@ -45,3 +45,18 @@ let next = 1;
 (window as any).__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} };
 
 await import("../src/settings/main");
+
+// The window opens on Flow's Dictation: go to Settings. Then ?cat=Pills opens
+// a category, ?q=key types a search: for screenshots.
+const params = new URLSearchParams(location.search);
+setTimeout(() => [...document.querySelectorAll<HTMLButtonElement>(".hub-item")].at(-1)?.click(), 300);
+setTimeout(() => {
+  const cat = params.get("cat");
+  if (cat) [...document.querySelectorAll<HTMLButtonElement>(".nav-item")].find((b) => b.textContent === cat)?.click();
+  const q = params.get("q");
+  const search = document.querySelector<HTMLInputElement>("input.search");
+  if (q && search) {
+    search.value = q;
+    search.dispatchEvent(new Event("input"));
+  }
+}, 900);
