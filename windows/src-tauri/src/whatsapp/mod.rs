@@ -21,7 +21,7 @@ pub mod process;
 pub mod provider;
 pub mod webhook;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
@@ -87,6 +87,10 @@ pub enum SendError {
     Unauthorized,
     NeedsQr,
     Refused { detail: String },
+    /// A photo or video over `provider::MAX_MEDIA`.
+    TooBig,
+    /// Not a photo or video WhatsApp takes.
+    NotMedia,
 }
 
 /// What happens to the pill (src/island/whatsapp.ts).
@@ -124,10 +128,14 @@ pub struct ChatSummary {
     pub name: String,
     pub is_group: bool,
     pub last_activity: i64,
+    /// Archived on the phone: under "Archived", not in the list.
+    pub archived: bool,
 }
 
 /// Messages per page of the big WhatsApp chat's history (both gateways answer 100 at most).
 const HISTORY_PAGE: usize = 50;
+/// A photo's or video's caption (OpenWA's own cap).
+const MAX_CAPTION: usize = 1024;
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -195,6 +203,9 @@ struct Ctl {
     last_webhook: Option<Instant>,
     last_poll_ms: i64,
     naming: HashSet<String>,
+    /// The gateway's own chats (id, name) last listed for the big WhatsApp chat: chats that exist on
+    /// WhatsApp, so they may be written to like the inbox's.
+    known: HashMap<String, String>,
     /// The conversation open in the card: what arrives there is seen, so it isn't unread.
     open_chat: Option<String>,
     rate: RateLimit,
@@ -229,6 +240,7 @@ static CTL: LazyLock<Mutex<Ctl>> = LazyLock::new(|| {
         last_webhook: None,
         last_poll_ms: 0,
         naming: HashSet::new(),
+        known: HashMap::new(),
         open_chat: None,
         rate: RateLimit::default(),
         failures: 0,
@@ -490,6 +502,7 @@ fn stop(forget: bool) {
     if forget {
         c.open_chat = None;
         c.inbox.clear();
+        c.known.clear();
         drop(c);
         pill(PillEvent::Reset);
     }
@@ -920,16 +933,22 @@ fn open(chat: &str) {
             let _ = provider.mark_read(&key, last.as_deref()).await;
         }
         let Ok(history) = provider.messages(&chat, 10, None, me.as_deref()).await else { return };
-        {
+        let groups = {
             let mut c = ctl();
             if c.generation != gen {
                 return;
             }
             let filters = c.filters();
+            // A chat opened from the gateway's list keeps the name found there; a group still
+            // without one is asked its name, once, as the inbox does.
+            let key = model::normalized(&chat);
+            let known = c.known.get(&key).filter(|n| !model::unnamed(&key, n)).cloned();
             for message in history {
-                c.inbox.add(message, &filters, None, true);
+                c.inbox.add(message, &filters, known.as_deref(), true);
             }
-        }
+            needs_name(&mut c, &key).into_iter().collect::<Vec<_>>()
+        };
+        name_groups(provider.clone(), gen, groups);
         changed();
     });
 }
@@ -954,16 +973,153 @@ async fn chats() -> Vec<ChatSummary> {
     };
     let Some(provider) = provider else { return vec![] };
     let Ok(list) = provider.chats().await else { return vec![] };
-    list.into_iter()
-        .map(|(id, name, last_activity)| (model::normalized(&id), name, last_activity))
-        .filter(|(id, _, _)| is_chat(id) && !ignored.contains(id))
-        .map(|(id, name, last_activity)| ChatSummary {
-            name: if name.is_empty() { model::display_number(&id) } else { name },
-            is_group: model::is_group(&id),
-            id,
-            last_activity,
-        })
-        .collect()
+    let mut list: Vec<ChatSummary> = list
+        .into_iter()
+        .map(|c| (model::normalized(&c.id), c))
+        .filter(|(id, _)| is_chat(id) && !ignored.contains(id))
+        .map(|(id, c)| ChatSummary { is_group: model::is_group(&id), id, name: c.name, last_activity: c.last, archived: c.archived })
+        .collect();
+    // Groups listed without a name (GOWA's /chats gives none, or the number): the inbox's name,
+    // the one found last time, else the gateway's group info, asked once per group as the inbox does.
+    let mut renamed = false;
+    for chat in list.iter_mut().filter(|s| s.is_group && model::unnamed(&s.id, &s.name)) {
+        let (found, ask) = {
+            let mut c = ctl();
+            let found = c
+                .inbox
+                .conversations
+                .get(&chat.id)
+                .map(|conv| conv.name.clone())
+                .or_else(|| c.known.get(&chat.id).cloned())
+                .filter(|n| !model::unnamed(&chat.id, n));
+            let ask = found.is_none() && c.naming.insert(chat.id.clone());
+            (found, ask)
+        };
+        let name = match found {
+            Some(name) => Some(name),
+            None if ask => provider.group_name(&chat.id).await,
+            None => None,
+        };
+        let Some(name) = name else { continue };
+        let mut c = ctl();
+        // The conversation's header too, when the inbox only had the number.
+        if c.inbox.conversations.get(&chat.id).is_some_and(|conv| model::unnamed(&chat.id, &conv.name)) {
+            c.inbox.rename(&chat.id, &name);
+            renamed = true;
+        }
+        chat.name = name;
+    }
+    for chat in &mut list {
+        if chat.name.is_empty() {
+            chat.name = model::display_number(&chat.id);
+        }
+    }
+    ctl().known = list.iter().map(|c| (c.id.clone(), c.name.clone())).collect();
+    if renamed {
+        changed();
+    }
+    list
+}
+
+/// One outgoing photo, video or forward at a time, a few a minute, only to a chat that exists (the
+/// inbox's or the gateway's own list): what a reply follows too. The provider, generation and
+/// this account's id once it may go; None (and the reason shown, when there is one) otherwise.
+fn start_sending(key: &str) -> Option<(Arc<Provider>, u64, Option<String>)> {
+    let mut c = ctl();
+    let provider = c.provider.clone()?;
+    if c.sending || !(c.inbox.conversations.contains_key(key) || c.known.contains_key(key)) {
+        return None;
+    }
+    if !c.rate.allow(Instant::now()) {
+        c.send_error = Some(SendError::TooFast);
+        drop(c);
+        changed();
+        return None;
+    }
+    c.sending = true;
+    c.send_error = None;
+    let started = (provider, c.generation, c.me.clone());
+    drop(c);
+    changed();
+    Some(started)
+}
+
+/// The end of a send started above: the reason it failed shown, or `mine` (a photo or video sent)
+/// added to its chat under the gateway's id. True once the gateway took it.
+fn finish_sending(gen: u64, result: Result<Option<String>, WaError>, mine: Option<Message>) -> bool {
+    let ok = result.is_ok();
+    {
+        let mut c = ctl();
+        if c.generation != gen {
+            return ok;
+        }
+        c.sending = false;
+        match result {
+            Ok(id) => {
+                if let Some(mut m) = mine {
+                    if let Some(id) = id {
+                        m.id = id;
+                    }
+                    m.chat_name = c.inbox.conversations.get(&m.chat).map(|conv| conv.name.clone()).or_else(|| c.known.get(&m.chat).cloned());
+                    let filters = c.filters();
+                    c.inbox.add(m, &filters, None, false);
+                }
+            }
+            Err(err) => {
+                c.send_error = Some(match err {
+                    WaError::Unreachable => SendError::Unreachable,
+                    WaError::Unauthorized => SendError::Unauthorized,
+                    WaError::NotLoggedIn => SendError::NeedsQr,
+                    WaError::Refused(detail) => SendError::Refused { detail },
+                });
+            }
+        }
+    }
+    changed();
+    ok
+}
+
+/// Sends a photo or video picked or dropped in the big WhatsApp chat, with its caption: only on
+/// the user's Enter or click, checked from its bytes (a photo or video, `MAX_MEDIA` at most).
+async fn send_media(chat: &str, name: &str, bytes: Vec<u8>, caption: &str) -> bool {
+    let key = model::normalized(chat);
+    let caption = caption.trim();
+    let kind = gateway::media_type(&bytes);
+    let refusal = if bytes.len() > provider::MAX_MEDIA {
+        Some(SendError::TooBig)
+    } else if kind.is_none() {
+        Some(SendError::NotMedia)
+    } else if caption.chars().count() > MAX_CAPTION {
+        Some(SendError::TooLong)
+    } else {
+        None
+    };
+    if let Some(refusal) = refusal {
+        ctl().send_error = Some(refusal);
+        changed();
+        return false;
+    }
+    let Some((mime, video)) = kind else { return false };
+    let name = if name.trim().is_empty() { if video { "video.mp4" } else { "photo.jpg" } } else { name.trim() };
+    let Some((provider, gen, me)) = start_sending(&key) else { return false };
+    let result = provider.send_media(&key, video, mime, name, &bytes, caption).await;
+    let now = gateway::now_ms();
+    let mut mine = Message::new(&format!("coucou-{now}"), &key, me.as_deref().unwrap_or(""), caption, now);
+    mine.from_me = true;
+    mine.media = if video { model::Media::Video } else { model::Media::Image };
+    finish_sending(gen, result, Some(mine))
+}
+
+/// Forwards a message with the gateway's own forward: only after the user picked the chat and
+/// clicked to send it.
+async fn forward(from: &str, id: &str, to: &str) -> bool {
+    let (from, to) = (model::normalized(from), model::normalized(to));
+    if !is_chat(&to) {
+        return false;
+    }
+    let Some((provider, gen, _)) = start_sending(&to) else { return false };
+    let result = provider.forward(&from, id, &to).await;
+    finish_sending(gen, result, None)
 }
 
 /// A person or a group: not the status broadcast, a channel or a broadcast list.
@@ -1170,6 +1326,66 @@ pub async fn whatsapp_history(window: WebviewWindow, chat: String, before: Optio
     history(&chat, before).await.ok_or_else(|| "the gateway didn't answer".into())
 }
 
+/// A message's photo or video for the big WhatsApp chat, fetched through the gateway when it is
+/// shown: its bytes go to the page (which keeps them in memory while the chat is open), never to disk.
+#[tauri::command]
+pub async fn whatsapp_media(window: WebviewWindow, chat: String, id: String) -> Result<tauri::ipc::Response, String> {
+    only(&window, crate::island::WINDOW_LABEL)?;
+    let provider = ctl().provider.clone().ok_or("WhatsApp is off")?;
+    let bytes = provider.media(&model::normalized(&chat), &id).await.map_err(|_| "no media".to_string())?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// The big WhatsApp chat's "Forward to …" click: the only way a forward leaves Coucou.
+#[tauri::command]
+pub async fn whatsapp_forward(window: WebviewWindow, from: String, id: String, to: String) -> Result<bool, String> {
+    only(&window, crate::island::WINDOW_LABEL)?;
+    Ok(forward(&from, &id, &to).await)
+}
+
+/// A photo or video dropped on the big WhatsApp chat, sent on the user's Enter or click: read from
+/// where it was dropped (its size first), never copied anywhere.
+#[tauri::command]
+pub async fn whatsapp_send_file(window: WebviewWindow, chat: String, path: String, caption: String) -> Result<bool, String> {
+    only(&window, crate::island::WINDOW_LABEL)?;
+    let path = std::path::PathBuf::from(path);
+    let size = std::fs::metadata(&path).map_err(|e| e.to_string())?.len();
+    if size > provider::MAX_MEDIA as u64 {
+        ctl().send_error = Some(SendError::TooBig);
+        changed();
+        return Ok(false);
+    }
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let bytes = tauri::async_runtime::spawn_blocking(move || std::fs::read(&path))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
+    Ok(send_media(&chat, &name, bytes, &caption).await)
+}
+
+/// The same for a photo or video picked with the attach button: its bytes as the body, the chat
+/// in `x-chat`, its name and the caption in base64 (`x-name`, `x-caption`).
+#[tauri::command]
+pub async fn whatsapp_send_bytes(window: WebviewWindow, request: tauri::ipc::Request<'_>) -> Result<bool, String> {
+    use base64::Engine;
+    only(&window, crate::island::WINDOW_LABEL)?;
+    // Everything taken out of the request before the gateway is called.
+    let (chat, name, caption, bytes) = {
+        let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+            return Err("expected the file".into());
+        };
+        let header = |k: &str| request.headers().get(k).and_then(|v| v.to_str().ok()).map(str::to_string);
+        let text = |k: &str| {
+            header(k)
+                .and_then(|v| base64::engine::general_purpose::STANDARD.decode(v).ok())
+                .and_then(|b| String::from_utf8(b).ok())
+                .unwrap_or_default()
+        };
+        (header("x-chat").ok_or("no chat")?, text("x-name"), text("x-caption"), bytes.clone())
+    };
+    Ok(send_media(&chat, &name, bytes, &caption).await)
+}
+
 /// Enter or the send button in the island's card: the only way a message leaves Coucou.
 #[tauri::command]
 pub async fn whatsapp_send(window: WebviewWindow, chat: String, text: String) -> Result<bool, String> {
@@ -1308,6 +1524,7 @@ mod tests {
             last_webhook: None,
             last_poll_ms: 0,
             naming: HashSet::new(),
+            known: HashMap::new(),
             open_chat: None,
             rate: RateLimit::default(),
             failures: 0,
@@ -1417,6 +1634,8 @@ mod tests {
         assert_eq!(json["install"]["step"], "idle");
         assert_eq!(json["defaultUrl"], "http://127.0.0.1:3000");
         assert_eq!(serde_json::to_value(SendError::Refused { detail: "x".into() }).unwrap()["code"], "refused");
+        assert_eq!(serde_json::to_value(SendError::TooBig).unwrap()["code"], "tooBig");
+        assert_eq!(serde_json::to_value(SendError::NotMedia).unwrap()["code"], "notMedia");
         assert_eq!(serde_json::to_value(WebhookState::PortBusy { port: 1 }).unwrap()["state"], "portBusy");
         assert_eq!(serde_json::to_value(LinkState::NeedsQr).unwrap()["state"], "needsQr");
         assert_eq!(serde_json::to_value(TestResult::Connected { who: "+1".into() }).unwrap()["result"], "connected");

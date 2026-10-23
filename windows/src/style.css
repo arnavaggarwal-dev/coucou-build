@@ -3108,6 +3108,186 @@ input[type="range"]::-webkit-slider-thumb {
   height: 20px;
 }
 
+/* "Archived" at the top of the list, as on the phone. */
+.wa-archived-icon {
+  flex: 0 0 26px;
+  display: grid;
+  place-items: center;
+  color: var(--dim-2);
+}
+
+/* Forwarding: "Forward" on a bubble's hover or right-click, then the bar under the conversation. */
+.wa-forwarded {
+  font: italic 400 9.5px var(--font);
+  color: var(--dim-3);
+}
+
+.wa-fwd {
+  display: none;
+  align-self: center;
+  flex: 0 0 auto;
+  padding: 0 6px;
+  font-size: 10px;
+  color: var(--dim-2);
+}
+
+.wa-line:hover .wa-fwd,
+.wa-line.offer .wa-fwd {
+  display: inline-block;
+}
+
+.wa-forward {
+  align-items: center;
+}
+
+.wa-forward-text {
+  flex: 1 1 auto;
+  font: 400 11px var(--font);
+  color: var(--dim-2);
+}
+
+.wa-forward-send {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: #25d366;
+  color: #0b0c0e;
+  font: 600 11px var(--font);
+  text-align: start;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+
+.wa-forward-cancel {
+  flex: 0 0 auto;
+  padding: 0;
+  color: var(--dim-2);
+}
+
+/* Photos and videos: a thumbnail in the bubble, full size over the panel. */
+.wa-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 140px;
+  min-height: 80px;
+  margin: 2px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--dim-2);
+  font: 500 10px var(--font);
+  overflow: hidden;
+  cursor: default;
+}
+
+.wa-thumb:has(img) {
+  min-width: 0;
+  min-height: 0;
+  background: none;
+}
+
+.wa-thumb-img {
+  display: block;
+  max-width: 240px;
+  max-height: 200px;
+  border-radius: 6px;
+}
+
+.wa-video {
+  display: block;
+  max-width: 280px;
+  max-height: 220px;
+  margin: 2px 0;
+  border-radius: 6px;
+}
+
+.wa-viewer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: none;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.88);
+}
+
+.wa-viewer.on {
+  display: grid;
+}
+
+.wa-viewer-img {
+  max-width: calc(100% - 40px);
+  max-height: calc(100% - 40px);
+  border-radius: 8px;
+}
+
+.wa-viewer-x {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  display: grid;
+  place-items: center;
+}
+
+/* Sending one: the attach button in the reply bar, the file waiting above it. */
+.wa-attach {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--dim-2);
+  display: grid;
+  place-items: center;
+  cursor: default;
+}
+
+.wa-file {
+  display: none;
+}
+
+.wa-attached {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 8px 0 0;
+  padding: 3px 8px;
+  border-radius: 7px;
+  background: rgba(37, 211, 102, 0.12);
+  font: 500 10.5px var(--font);
+  color: var(--ink-2);
+}
+
+.wa-attached-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wa-attached-x {
+  border: 0;
+  background: transparent;
+  color: var(--dim-2);
+  display: grid;
+  place-items: center;
+  cursor: default;
+}
+
 html[data-dir="rtl"] #views :is(.wa-text, .wa-field, .wa-preview) {
   unicode-bidi: plaintext;
   text-align: start;

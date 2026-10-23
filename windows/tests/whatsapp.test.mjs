@@ -12,7 +12,7 @@ import {
   testResultLabel, timeAgo, webhookLine,
 } from "../src/core/whatsapp.ts";
 import { handlePillEvent, registerWhatsAppHandlers } from "../src/island/whatsapp.ts";
-import { buildWhatsAppCard, buildWhatsAppChat, showsWhatsAppChat } from "../src/views/whatsapp.ts";
+import { buildWhatsAppCard, buildWhatsAppChat, showsWhatsAppChat, whatsAppDropTarget } from "../src/views/whatsapp.ts";
 import { pillDefinition } from "../src/core/pills.ts";
 import { DEFAULT_SETTINGS, State } from "../src/core/state.ts";
 import { lookup, setLanguage } from "../src/i18n/i18n.ts";
@@ -327,13 +327,18 @@ test("the conversation closes when WhatsApp is turned off or the island folds", 
 test("the big chat's list: the inbox's conversations, then the gateway's others, newest first", () => {
   const inbox = [conversation({ lastActivity: NOW - 60_000 })];
   const gateway = [
-    { id: "33612345678@s.whatsapp.net", name: "Marie (gateway)", isGroup: false, lastActivity: NOW },
-    { id: "1203@g.us", name: "Famille", isGroup: true, lastActivity: NOW - 30_000 },
-    { id: "336999@s.whatsapp.net", name: "Paul", isGroup: false, lastActivity: NOW - 9_000_000 },
+    { id: "33612345678@s.whatsapp.net", name: "Marie (gateway)", isGroup: false, lastActivity: NOW, archived: false },
+    { id: "1203@g.us", name: "Famille", isGroup: true, lastActivity: NOW - 30_000, archived: false },
+    { id: "336999@s.whatsapp.net", name: "Paul", isGroup: false, lastActivity: NOW - 9_000_000, archived: true },
   ];
   const list = chatList(inbox, gateway);
   assert.deepEqual(list.map((c) => c.name), ["Famille", "Marie", "Paul"], "the inbox's copy wins");
   assert.deepEqual([list[0].messages, list[0].unread], [[], 0]);
+  // Archived on the phone: out of the list, under "Archived" (an inbox chat too).
+  assert.deepEqual(chatList(inbox, gateway, false).map((c) => c.name), ["Famille", "Marie"]);
+  assert.deepEqual(chatList(inbox, gateway, true).map((c) => c.name), ["Paul"]);
+  const archivedMarie = gateway.map((g) => (g.name === "Marie (gateway)" ? { ...g, archived: true } : g));
+  assert.deepEqual(chatList(inbox, archivedMarie, true).map((c) => c.name), ["Marie", "Paul"]);
   const merged = mergeMessages([msg({ id: "a", date: 3 }), msg({ id: "b", date: 1 })], [msg({ id: "a", date: 3 }), msg({ id: "c", date: 2 })]);
   assert.deepEqual(merged.map((m) => m.id), ["b", "c", "a"]);
 });
@@ -359,7 +364,7 @@ test("the big chat: a click opens a chat with its history, older pages on scroll
   const plain = internals.invoke;
   internals.invoke = async (cmd, args) => {
     const result = await plain(cmd, args);
-    if (cmd === "whatsapp_chats") return [{ id: "1203@g.us", name: "Famille", isGroup: true, lastActivity: NOW - 3_600_000 }];
+    if (cmd === "whatsapp_chats") return [{ id: "1203@g.us", name: "Famille", isGroup: true, lastActivity: NOW - 3_600_000, archived: false }];
     if (cmd === "whatsapp_history") {
       history.push(args);
       return args.before == null ? pages.latest : pages.before;
@@ -416,7 +421,7 @@ test("the big chat: a click opens a chat with its history, older pages on scroll
     key(field, "Enter");
     await flush();
     assert.deepEqual(sent("whatsapp_send").slice(sends), [{ chat: "33612345678@s.whatsapp.net", text: "On arrive" }]);
-    const esc = key(field, "Escape");
+    const esc = key(chat.el, "Escape");
     assert.equal(esc.propagationStopped, true);
     assert.equal(calls.back, 1);
 
@@ -428,6 +433,99 @@ test("the big chat: a click opens a chat with its history, older pages on scroll
     State.notify();
     assert.deepEqual(sent("whatsapp_close").at(-1), { chat: "1203@g.us" });
     assert.equal(calls.hold.at(-1), false);
+  } finally {
+    internals.invoke = plain;
+  }
+});
+
+test("the big chat: archived chats apart, photos shown, forwards and files sent only on a click", async () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const plain = internals.invoke;
+  internals.invoke = async (cmd, args) => {
+    const result = await plain(cmd, args);
+    if (cmd === "whatsapp_chats") {
+      return [
+        { id: "1203@g.us", name: "Famille", isGroup: true, lastActivity: NOW - 3_600_000, archived: false },
+        { id: "336999@s.whatsapp.net", name: "Paul", isGroup: false, lastActivity: NOW - 7_200_000, archived: true },
+      ];
+    }
+    if (cmd === "whatsapp_history") return [];
+    if (cmd === "whatsapp_media") return new Uint8Array([0xff, 0xd8, 0xff]).buffer;
+    if (cmd === "whatsapp_forward" || cmd === "whatsapp_send_file") return true;
+    return result;
+  };
+  try {
+    const calls = { back: 0 };
+    const chat = buildWhatsAppChat({ openSettings() {}, holdOpen() {}, back: () => calls.back++ });
+    WhatsApp.view = connected({
+      conversations: [conversation({ unread: 0, messages: [
+        msg({ id: "m1", date: NOW - 90_000, text: "hello" }),
+        msg({ id: "p1", date: NOW - 80_000, text: "look", media: { kind: "image" } }),
+        msg({ id: "f1", date: NOW - 70_000, text: "a joke", forwarded: true }),
+      ] })],
+    });
+    State.mode = "expanded";
+    State.view = "prompt";
+    State.focusId = WHATSAPP_ID;
+    chat.sync();
+    await flush();
+
+    // Archived on the phone: one row at the top, the chats behind it.
+    let rows = chat.el.find(".wa-chat-row");
+    assert.match(rows[0].textContent, /Archived.*1/);
+    assert.deepEqual(rows.slice(1).map((r) => r.find(".wa-row-name")[0].textContent), ["Marie", "Famille"]);
+    rows[0].fire("click");
+    assert.deepEqual(chat.el.find(".wa-chat-row").map((r) => r.find(".wa-row-name")[0].textContent), ["Paul"]);
+    chat.el.find(".wa-back")[0].fire("click");
+    rows = chat.el.find(".wa-chat-row");
+    assert.equal(rows.length, 3);
+
+    // A photo comes through the gateway, in memory; "Forwarded" is said.
+    rows[1].fire("click");
+    await flush();
+    assert.deepEqual(sent("whatsapp_media").at(-1), { chat: "33612345678@s.whatsapp.net", id: "p1" });
+    assert.match(chat.el.find(".wa-thumb-img")[0].getAttribute("src"), /^blob:/);
+    assert.deepEqual(chat.el.find(".wa-forwarded").map((f) => f.textContent), ["Forwarded"]);
+    chat.el.find(".wa-thumb")[0].fire("click");
+    await flush();
+    const viewer = chat.el.find(".wa-viewer")[0];
+    assert.ok(viewer.classList.contains("on"), "full size over the panel");
+    key(chat.el, "Escape");
+    assert.ok(!viewer.classList.contains("on"));
+    assert.equal(calls.back, 0, "Escape closed the photo, not the chat");
+
+    // Forward: the message, the chat, then the click that sends it.
+    const forwards = sent("whatsapp_forward").length;
+    chat.el.find(".wa-fwd")[0].fire("click");
+    assert.match(chat.el.find(".wa-forward-text")[0].textContent, /Pick the chat to forward to/);
+    chat.el.find(".wa-chat-row")[2].fire("click");
+    assert.equal(chat.el.find(".wa-forward-send")[0].textContent, "Forward to Famille");
+    assert.equal(sent("whatsapp_forward").length, forwards, "picking the chat sends nothing");
+    chat.el.find(".wa-forward-send")[0].fire("click");
+    await flush();
+    assert.deepEqual(sent("whatsapp_forward").slice(forwards), [{ from: "33612345678@s.whatsapp.net", id: "m1", to: "1203@g.us" }]);
+    assert.equal(chat.el.find(".wa-note")[0].textContent, "Forwarded to Famille");
+    chat.el.find(".wa-fwd")[0].fire("click");
+    key(chat.el, "Escape");
+    assert.equal(chat.el.find(".wa-forward")[0].style.display, "none", "Escape drops the forward");
+    assert.equal(calls.back, 0);
+
+    // A dropped photo waits for Enter, the field as its caption.
+    const files = sent("whatsapp_send_file").length;
+    whatsAppDropTarget()("C:/Pictures/beach.jpg");
+    assert.equal(chat.el.find(".wa-attached-name")[0].textContent, "beach.jpg");
+    assert.equal(sent("whatsapp_send_file").length, files);
+    const field = chat.el.find("TEXTAREA")[0];
+    field.value = "the sea";
+    key(field, "Enter");
+    await flush();
+    assert.deepEqual(sent("whatsapp_send_file").slice(files), [{ chat: "33612345678@s.whatsapp.net", path: "C:/Pictures/beach.jpg", caption: "the sea" }]);
+    assert.equal(chat.el.find(".wa-attached")[0].style.display, "none");
+
+    // Leaving: nothing more is taken from a drop.
+    State.view = "overview";
+    State.notify();
+    assert.equal(whatsAppDropTarget(), null);
   } finally {
     internals.invoke = plain;
   }

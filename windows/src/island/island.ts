@@ -24,7 +24,7 @@ import { USC, UploadSeq, uploadProgressCurve } from "../upload/sequence";
 import { closePlanCard, openPlanColor, planCardOpen } from "../views/usage";
 import { buildHeader, buildViews, type ViewActions, type ViewHost } from "../views/views";
 import { h } from "../views/dom";
-import { showsWhatsAppChat } from "../views/whatsapp";
+import { showsWhatsAppChat, whatsAppDropTarget } from "../views/whatsapp";
 import { IslandStateMachine } from "./fsm";
 import { refreshHookPills } from "./integrations";
 import { DesktopLink } from "./desktop";
@@ -690,6 +690,13 @@ export class Island {
   private onDragDrop(e: { type: string; paths?: string[] }) {
     if (e.type !== "over") void Bridge.log(`drag ${e.type} ${e.paths?.length ?? 0} file(s)`);
     if (State.paused) return;
+    // Fork: a photo or video dropped on a chat open in the big WhatsApp chat goes with its next
+    // reply (views/whatsapp.ts), not into the drop sequence.
+    const whatsapp = State.mode === "expanded" && State.view === "prompt" && showsWhatsAppChat() ? whatsAppDropTarget() : null;
+    if (whatsapp) {
+      if (e.type === "drop" && e.paths?.[0]) whatsapp(e.paths[0]);
+      return;
+    }
     switch (e.type) {
       case "enter":
       case "over": {
