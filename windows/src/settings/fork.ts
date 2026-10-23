@@ -59,7 +59,7 @@ const PROVIDERS: [string, string][] = [
 
 const OUTPUTS: [ModelOutput, string][] = [
   ["image", N_("Images")],
-  ["video", "Video"],
+  ["video", N_("Video")],
   ["audio", "Speech"],
   ["3d", "3D"],
   ["stt", "Transcribes speech (the chat's mic)"],
@@ -298,7 +298,7 @@ export function yourMochis(s: Settings): { key: string; name: string; color: str
     return { key, name: name || def?.name || id, color: pillColor(id, def?.color ?? "#888888", s.pillColors) };
   };
   return [
-    mochi(d.mainPill, MAIN_MOCHI, s.mochiName?.trim() || "Mochi"),
+    mochi(d.mainPill, MAIN_MOCHI, s.mochiName?.trim() || t("Mochi")),
     ...d.activeIntegrations.map((id) => mochi(id, id, s.mochiNames?.[id]?.trim() || DEFAULT_MOCHI_NAMES[id])),
   ];
 }

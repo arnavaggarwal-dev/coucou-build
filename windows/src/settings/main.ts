@@ -21,6 +21,8 @@ import { FLOW_PAGES, startHub, type HubContext, type PageId } from "../hub/shell
 import { FLOW_PAGE_RENDERERS } from "../hub/pages";
 import { agentsSection } from "./agents";
 import { phoneSection } from "./phone";
+import { whatsappSection } from "./whatsapp";
+import { WHATSAPP_ID } from "../core/whatsapp";
 import { colorDot } from "./colors";
 import {
   forkSettingsChanged, mediaModelsSection, nameInput, wardrobeSection, type ForkContext,
@@ -762,6 +764,17 @@ const INTEGRATIONS: IntegrationDef[] = [
   { id: "integration_github", name: "GitHub", color: "#F4505E",
     fields: [{ key: "github-token", label: N_("Token"), placeholder: "ghp_…", secret: true }],
     hint: N_("Classic token with the repo scope, or fine-grained with read access to Pull requests, Commit statuses and Actions.") },
+  { id: "integration_gitlab", name: "GitLab", color: "#FC6D26",
+    fields: [
+      { key: "gitlab-url", label: N_("Instance URL"), placeholder: "https://gitlab.com", secret: false },
+      { key: "gitlab-token", label: N_("Token"), placeholder: "glpat-…", secret: true },
+    ],
+    hint: N_("Personal access token with read_api and read_user scopes.") },
+  { id: "integration_gitea", name: "Gitea", color: "#609926",
+    fields: [
+      { key: "gitea-url", label: N_("Instance URL"), placeholder: "https://gitea.example.com", secret: false },
+      { key: "gitea-token", label: N_("Token"), placeholder: "…", secret: true },
+    ] },
   { id: "integration_vercel", name: "Vercel", color: "#7C5CFF",
     fields: [{ key: "vercel-token", label: N_("Token"), placeholder: "…", secret: true }] },
   { id: "integration_n8n", name: "n8n", color: "#F29B38",
@@ -903,6 +916,27 @@ function integrationsSection(present: Record<string, boolean>): HTMLElement {
   return h("section", {}, h("h2", {}, h("span", { text: t("Integrations") })), note, list);
 }
 
+/** WhatsApp (experimental), under the other integrations: its pill is turned on from its own switch. */
+function whatsappSections(): HTMLElement[] {
+  if (!availablePills().some((p) => p.id === WHATSAPP_ID)) return [];
+  return [whatsappSection({
+    toggle,
+    maxPills: MAX_ACTIVE,
+    pillActive: () => settings.activeIntegrations.includes(WHATSAPP_ID),
+    setPill: (on) => {
+      const has = settings.activeIntegrations.includes(WHATSAPP_ID);
+      if (on && !has && settings.activeIntegrations.length < MAX_ACTIVE) {
+        settings.activeIntegrations = [...settings.activeIntegrations, WHATSAPP_ID];
+      } else if (!on && has) {
+        settings.activeIntegrations = settings.activeIntegrations.filter((x) => x !== WHATSAPP_ID);
+      } else {
+        return;
+      }
+      declaredChanged();
+    },
+  })];
+}
+
 // ── General section ───────────────────────────────────────────────────────────
 
 function generalSection() {
@@ -983,18 +1017,25 @@ function generalSection() {
         ),
       ),
       recapCard(),
+      // Fork: this build comes from the user's own cloud build, so Coucou never
+      // looks for an official release nor installs one over it (update.rs FORK_BUILD).
+      card(t("Updates"), null,
+        item(t("You have {version}", { version }), t("This build updates only from your own build: Coucou never checks GitHub for a new version and never installs one.")),
+      ),
     ],
     island: card(t("Behavior"), null,
       item(t("Open on hover"), t("Hovering the island opens it; it folds again shortly after the pointer leaves. Click inside to keep it open."),
         sw(settings.openOnHover, (v) => (settings.openOnHover = v))),
       item(t("Auto-close"), t("seconds after you leave the island"), autoClose),
+      item(t("Show clock in the island"), t("The date and the time in the middle of the island when it is compact."),
+        sw(settings.showClock, (v) => (settings.showClock = v))),
       item("Keep island visible", "stays compact at the top instead of hiding",
         sw(settings.keepVisible ?? false, (v) => (settings.keepVisible = v))),
       item(t("Island lives on"), null, screen),
     ),
     mochi: card("", null,
       item("Mochi's name", "What the chat calls itself, and the name on the main Mochi's pill when nothing runs.",
-        nameInput(settings.mochiName ?? "", "Mochi", (v) => { settings.mochiName = v; }, fork.save)),
+        nameInput(settings.mochiName ?? "", t("Mochi"), (v) => { settings.mochiName = v; }, fork.save)),
       item("Quick screenshot", "Ctrl+drag Mochi out: skip his scan and capture 0.2 s after the drop",
         sw(settings.quickScan ?? false, (v) => (settings.quickScan = v))),
     ),
@@ -1384,7 +1425,7 @@ async function render() {
   const shortcutReport = await Bridge.shortcutsStatus();
 
   const keys = [
-    "stripe-api-key", "github-token", "vercel-token",
+    "stripe-api-key", "github-token", "gitlab-url", "gitlab-token", "gitea-url", "gitea-token", "vercel-token",
     "n8n-url", "n8n-api-key", "resend-api-key", "notion-api-key", "calcom-api-key",
   ];
   const present: Record<string, boolean> = {};
@@ -1422,7 +1463,7 @@ async function render() {
     ["general", t("General"), general.general],
     ["island", t("Island"), [general.island]],
     ["mochi", t("Mochi"), [general.mochi, wardrobeSection(fork)]],
-    ["pills", t("Pills"), [activePillsSection(connected), integrationsSection(present)]],
+    ["pills", t("Pills"), [activePillsSection(connected), integrationsSection(present), ...whatsappSections()]],
     ["agents", t("Agents"), [claudeSection(status), agentsSection(agents), planSection(status)]],
     ["chat", t("Chat"), [chatProvidersSection(chatKeys, keyChanged, claudeCode), localSection(customKey)]],
     ...(hubCtx ? [

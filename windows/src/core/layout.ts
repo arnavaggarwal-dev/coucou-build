@@ -23,7 +23,9 @@ export type IslandViewName =
   | "settings"
   | "greeting"
   | "recap"
-  | "wardrobe";
+  | "wardrobe"
+  | "update"
+  | "whatsNew";
 
 export type BotStateName =
   | "idle"
@@ -97,6 +99,11 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   recap: { height: 184, botX: 62, botY: null, botDiameter: 58, agentMode: "column" },
   // Fork: taller than the Mac's 160, for two rows of outfits and the body shapes.
   wardrobe: { height: 210, botX: 68, botY: null, botDiameter: 58, agentMode: "none" },
+  // New version: Mochi on the left, the version and Update now (Mac: .update).
+  update: { height: 160, botX: 62, botY: null, botDiameter: 58, agentMode: "none" },
+  // After an update: what the new version brings, then "Your Coucou so far".
+  // Taller than a card, for two rows of items with their line.
+  whatsNew: { height: 222, botX: 62, botY: null, botDiameter: 58, agentMode: "none" },
 };
 
 // The upload views above are only the fallback geometry. Once a file is actually

@@ -11,6 +11,8 @@ import { fileName, parseDiffStep, type FileDiff } from "../core/diff";
 import type { PlanUsage, CodexPlanUsage } from "../core/plan";
 import { State } from "../core/state";
 import { parseOutfit } from "../mochi/wardrobe";
+import { recapForPhone, recapWeekKey } from "../recap/phone";
+import { previousWeekStart } from "../recap/summary";
 import { dropPendingCard } from "./hooks";
 import { serviceCards } from "./phone-services";
 import type { Island } from "./island";
@@ -154,6 +156,8 @@ export function registerPhoneLink(island: Island): () => void {
   let lastUsage = "";
   /** The service cards last sent, as JSON; "" before anything was. */
   let lastServices = "";
+  /** The week whose recap was last sent (or checked while the switch was off); "" before anything was. */
+  let lastRecapWeek = "";
   let timer: number | null = null;
 
   const publish = () => {
@@ -161,6 +165,7 @@ export function registerPhoneLink(island: Island): () => void {
     publishQuestion();
     publishOutfit();
     publishUsage();
+    publishRecap();
     publishServices();
     const snapshot = linkSnapshot();
     const key = JSON.stringify(snapshot);
@@ -192,6 +197,23 @@ export function registerPhoneLink(island: Island): () => void {
     void Bridge.phoneLinkPublishUsage(usage);
   };
 
+  /**
+   * Last week's recap, for phones whose user turned it on. Worked out once per week (and again when a setting changes), not on every burst: a
+   * completed week does not change. With the switch off nothing is read, and the hub is told there is nothing to hold.
+   */
+  const publishRecap = () => {
+    const now = new Date();
+    const week = recapWeekKey(now);
+    if (week === lastRecapWeek) return;
+    lastRecapWeek = week;
+    void (async () => {
+      const on = (await Bridge.phoneRecapStatus())?.enabled === true;
+      const history = on ? await Bridge.recapHistory(previousWeekStart(now).getTime() / 1000) : null;
+      if (!running) return;
+      await Bridge.phoneLinkPublishRecap(on ? recapForPhone(history, now) : null);
+    })();
+  };
+
   const publishServices = () => {
     const cards = serviceCards();
     const key = JSON.stringify(cards);
@@ -215,6 +237,7 @@ export function registerPhoneLink(island: Island): () => void {
     lastOutfit = "";
     lastUsage = "";
     lastServices = "";
+    lastRecapWeek = "";
     if (running) schedule();
     else if (timer != null) {
       window.clearTimeout(timer);
@@ -224,7 +247,12 @@ export function registerPhoneLink(island: Island): () => void {
 
   const unsubscribe = State.subscribe(schedule);
   // Turning the link on or off in Settings reaches the island as settings-changed.
-  void onEvent("settings-changed", () => void refresh());
+  void onEvent("settings-changed", () => {
+    // The recap switch is one of the settings: read it again at the next picture.
+    lastRecapWeek = "";
+    if (running) schedule();
+    void refresh();
+  });
   // The phone answered: Rust has already told the agent; the card goes.
   void onEvent<string>("phone-link-decided", (requestId) => {
     if (State.pendingApproval?.requestId === requestId) dropPendingCard(island);

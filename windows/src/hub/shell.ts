@@ -8,7 +8,7 @@ import { h, clear } from "../views/dom";
 import { t } from "../i18n/i18n";
 import { onEvent } from "../core/bridge";
 import { FlowBridge, type FlowPrefs, type FlowStatus, type ModelsStatus } from "../core/flow";
-import { hero } from "./hero";
+import { hero, setWindowShown } from "./hero";
 import { keyLabel } from "./ui";
 
 export type PageId =
@@ -95,6 +95,11 @@ const DEFAULT_STATUS: FlowStatus = {
 
 export async function startHub(root: HTMLElement, opts: HubOptions) {
   document.body.classList.add("hub-window");
+  // The window is created hidden and only shown and hidden afterwards: its
+  // canvases animate only while it is on screen (#792).
+  await onEvent<boolean>("hub-visible", setWindowShown);
+  const shown = await FlowBridge.hubShown();
+  if (shown !== null) setWindowShown(shown);
   let current: PageId = "general";
   let status: FlowStatus = (await FlowBridge.status()) ?? DEFAULT_STATUS;
   const statusLine = h("div", { class: "hub-status" });
