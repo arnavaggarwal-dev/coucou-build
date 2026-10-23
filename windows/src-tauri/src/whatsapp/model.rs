@@ -212,7 +212,7 @@ impl Inbox {
         } else {
             Some(message.sender_name.clone())
         };
-        let given = name.map(str::to_string).or_else(|| message.chat_name.clone()).filter(|n| !n.is_empty());
+        let given = name.map(str::to_string).or_else(|| message.chat_name.clone()).filter(|n| !unnamed(&chat, n));
         let mut conversation = self.conversations.remove(&chat).unwrap_or_else(|| Conversation {
             id: chat.clone(),
             name: given.clone().or_else(|| person_name.clone()).unwrap_or_else(|| number.clone()),
