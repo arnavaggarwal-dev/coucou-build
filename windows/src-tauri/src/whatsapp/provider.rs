@@ -342,20 +342,40 @@ impl Provider {
         Ok(out)
     }
 
-    /// The latest `limit` messages of one chat, oldest first.
-    pub async fn messages(&self, chat: &str, limit: usize, me: Option<&str>) -> Result<Vec<Message>, WaError> {
+    /// The latest `limit` messages of one chat, oldest first. With `before` (ms), the latest up to
+    /// that time: an older page of the big WhatsApp chat, that second included so a message sharing
+    /// it is never skipped (the page drops the ones it already has).
+    pub async fn messages(&self, chat: &str, limit: usize, before: Option<i64>, me: Option<&str>) -> Result<Vec<Message>, WaError> {
         let mut out = match self {
             Provider::Gowa { http, device } => {
                 let path = format!("/chat/{}/messages", path_component(chat));
-                gowa::messages(&Self::gowa_scoped(http, device, Method::GET, &path, &[("limit", limit.to_string())], None).await?, me)
+                let mut q = vec![("limit", limit.to_string())];
+                if let Some(before) = before {
+                    q.push(("end_time", gateway::iso_utc(before + 1000)));
+                }
+                gowa::messages(&Self::gowa_scoped(http, device, Method::GET, &path, &q, None).await?, me)
             }
             Provider::Openwa { http, session } => {
-                let q = [("chatId", openwa::chat_id(chat)), ("limit", limit.to_string()), ("inlineMedia", "false".into())];
+                let mut q = vec![("chatId", openwa::chat_id(chat)), ("limit", limit.to_string()), ("inlineMedia", "false".into())];
+                if let Some(before) = before {
+                    // `until` is exclusive; the newest by message time, not by arrival at the gateway.
+                    q.push(("until", (before + 1000).to_string()));
+                    q.push(("orderBy", "timestamp".into()));
+                }
                 openwa::messages(&Self::openwa_scoped(http, session, Method::GET, "/messages", &q, None).await?, me)
             }
         };
         out.sort_by_key(|m| m.date);
         Ok(out)
+    }
+
+    /// The gateway's latest chats, newest first: (id, name, last activity in ms).
+    pub async fn chats(&self) -> Result<Vec<(String, String, i64)>, WaError> {
+        let q = [("limit", "30".to_string())];
+        match self {
+            Provider::Gowa { http, device } => Ok(gowa::chats(&Self::gowa_scoped(http, device, Method::GET, "/chats", &q, None).await?)),
+            Provider::Openwa { http, session } => Ok(openwa::chats(&Self::openwa_scoped(http, session, Method::GET, "/chats", &q, None).await?)),
+        }
     }
 
     /// Sends a text to an existing chat; the new message's id when the gateway gives it.

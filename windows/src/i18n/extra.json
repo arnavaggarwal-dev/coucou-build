@@ -365,6 +365,19 @@
       "de": "Chatte mit einem selbst betriebenen Modell: Ollama oder LM Studio (für die übliche Adresse auf diesem Computer leer lassen) oder einem OpenAI-API-kompatiblen Server wie vLLM oder llama.cpp. Wähle das Modell nach dem Verbinden über dem Chatfeld aus.",
       "tr": "Kendin çalıştırdığın bir modelle sohbet et: Ollama veya LM Studio (bu bilgisayardaki varsayılan adres için adresi boş bırak) ya da vLLM veya llama.cpp gibi OpenAI API'siyle uyumlu bir sunucu. Bağlandıktan sonra sohbet kutusunun üstünden seç."
     },
+    "Choose a conversation": {
+      "zh-Hans": "选择一个对话",
+      "hi": "कोई बातचीत चुनें",
+      "es": "Elige una conversación",
+      "ar": "اختر محادثة",
+      "fr": "Choisis une conversation",
+      "bn": "একটি কথোপকথন বেছে নিন",
+      "pt-BR": "Escolha uma conversa",
+      "ru": "Выберите чат",
+      "id": "Pilih percakapan",
+      "de": "Wähle eine Unterhaltung",
+      "tr": "Bir sohbet seç"
+    },
     "Choose a model": {
       "zh-Hans": "选择模型",
       "hi": "मॉडल चुनें",

@@ -386,6 +386,19 @@ pub mod openwa {
             .collect()
     }
 
+    /// `GET /api/sessions/{id}/chats` → a bare array of `{id, name, isGroup, timestamp (s), …}`,
+    /// newest first: (id, name, last activity in ms), as `gowa::chats`.
+    pub fn chats(data: &[u8]) -> Vec<(String, String, i64)> {
+        let Ok(Value::Array(list)) = serde_json::from_slice::<Value>(data) else { return vec![] };
+        list.iter()
+            .filter_map(|c| {
+                let id = text(c.get("id"))?;
+                let name = c.get("name").and_then(Value::as_str).unwrap_or("").to_string();
+                Some((id, name, epoch_ms(c.get("timestamp")).unwrap_or(0)))
+            })
+            .collect()
+    }
+
     /// NestJS error: `{statusCode, message (string or [string]), error}`.
     pub fn error_message(data: &[u8]) -> Option<String> {
         let v: Value = serde_json::from_slice(data).ok()?;
@@ -711,6 +724,13 @@ mod tests {
         let stored = r#"{"messages":[{"waMessageId":"3EB0AB","chatId":"628123456789@c.us","from":"628123456789@c.us","chatName":"Alice","author":null,"body":"See you","type":"text","direction":"incoming","timestamp":1719306115}],"total":1}"#;
         let om = openwa::messages(stored.as_bytes(), None);
         assert_eq!((om[0].id.as_str(), om[0].chat_name.as_deref(), om[0].from_me), ("3EB0AB", Some("Alice"), false));
+        // docs/06-api-specification.md: GET /api/sessions/:sessionId/chats (ChatSummary).
+        let chats = r#"[{"id":"628123456789@c.us","name":"Alice","isGroup":false,"kind":"individual","unreadCount":2,"timestamp":1719306115,"lastMessage":"See you","archived":false,"pinned":false,"muted":false},{"id":"120363000000000000@g.us","name":"","isGroup":true,"timestamp":1719306000},{"name":"no id"}]"#;
+        assert_eq!(openwa::chats(chats.as_bytes()), [
+            ("628123456789@c.us".to_string(), "Alice".to_string(), 1_719_306_115_000),
+            ("120363000000000000@g.us".to_string(), String::new(), 1_719_306_000_000),
+        ]);
+        assert!(openwa::chats(br#"{"statusCode":409}"#).is_empty());
         assert_eq!(openwa::error_message(br#"{"statusCode":400,"message":["a","b"]}"#).as_deref(), Some("a, b"));
         assert_eq!(openwa::chat_id("336@s.whatsapp.net"), "336@c.us");
     }

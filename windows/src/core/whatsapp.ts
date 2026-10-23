@@ -219,6 +219,31 @@ export function lastMessages(c: WaConversation, count = 10): WaMessage[] {
   return c.messages.slice(-count);
 }
 
+/** ChatSummary in src-tauri/src/whatsapp/mod.rs: a chat of the gateway's own list. */
+export interface WaChatSummary {
+  id: string;
+  name: string;
+  isGroup: boolean;
+  lastActivity: number;
+}
+
+/** The big WhatsApp chat's list: the inbox's conversations, then the gateway's other chats
+ *  (no message yet), newest first. */
+export function chatList(conversations: WaConversation[], gateway: WaChatSummary[]): WaConversation[] {
+  const known = new Set(conversations.map((c) => c.id));
+  const others = gateway
+    .filter((c) => !known.has(c.id))
+    .map((c) => ({ ...c, messages: [], unread: 0 }));
+  return [...conversations, ...others].sort((a, b) => b.lastActivity - a.lastActivity);
+}
+
+/** The older pages and the inbox's latest together: once each, oldest first. */
+export function mergeMessages(older: WaMessage[], latest: WaMessage[]): WaMessage[] {
+  const byId = new Map<string, WaMessage>();
+  for (const m of [...older, ...latest]) byId.set(m.id, m);
+  return [...byId.values()].sort((a, b) => a.date - b.date);
+}
+
 /** Enter sends, Shift+Enter is a new line; IME composition never sends. */
 export function keyAction(e: { key: string; shiftKey: boolean; isComposing?: boolean }): "send" | "newline" | "back" | null {
   if (e.key === "Escape") return "back";

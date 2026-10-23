@@ -3005,6 +3005,109 @@ input[type="range"]::-webkit-slider-thumb {
   color: #f4505e;
 }
 
+/* The big WhatsApp chat (the chat view on WhatsApp's Mochi): the card's pieces, larger, the chats
+   beside the conversation. Mochi keeps the chat's left column. */
+
+.wa-chat-body {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px 6px 84px;
+}
+
+.wa-chat-list {
+  flex: 0 0 210px;
+  min-width: 0;
+}
+
+.wa-chat-rows {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.wa-chat-rows .wa-rows {
+  flex: 1 1 auto;
+  padding-right: 0;
+}
+
+.wa-chat-side {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: 10px;
+  border-left: 1px solid var(--hairline);
+}
+
+.wa-chat-row {
+  gap: 8px;
+  padding: 5px 6px;
+}
+
+.wa-chat-row.on,
+.wa-chat-row.on:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.wa-chat-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wa-chat-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.wa-chat .wa-row-name {
+  max-width: none;
+  font-size: 11.5px;
+}
+
+.wa-chat .wa-head {
+  margin-left: 0;
+  padding: 0 0 6px;
+}
+
+.wa-chat .wa-name {
+  font-size: 12px;
+}
+
+.wa-chat .wa-messages {
+  gap: 4px;
+  padding-right: 8px;
+}
+
+.wa-chat .wa-bubble {
+  padding: 4px 8px;
+}
+
+.wa-chat .wa-text {
+  font-size: 11.5px;
+}
+
+.wa-chat .wa-reply {
+  margin: 4px 8px 0 0;
+}
+
+.wa-chat .wa-field {
+  font-size: 11.5px;
+  max-height: 90px;
+}
+
+.wa-chat .wa-send {
+  width: 20px;
+  height: 20px;
+}
+
 html[data-dir="rtl"] #views :is(.wa-text, .wa-field, .wa-preview) {
   unicode-bidi: plaintext;
   text-align: start;
@@ -3042,7 +3145,7 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
   left: 0;
   top: 0;
   width: 720px;
-  height: 320px;
+  height: 460px;
   pointer-events: none;
 }
 

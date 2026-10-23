@@ -116,6 +116,19 @@ pub struct IslandView {
     pub down: bool,
 }
 
+/// A chat of the gateway's own list (src/views/whatsapp.ts, the big WhatsApp chat).
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatSummary {
+    pub id: String,
+    pub name: String,
+    pub is_group: bool,
+    pub last_activity: i64,
+}
+
+/// Messages per page of the big WhatsApp chat's history (both gateways answer 100 at most).
+const HISTORY_PAGE: usize = 50;
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IgnoredChat {
@@ -255,10 +268,18 @@ impl Ctl {
 
     fn island_view(&self) -> IslandView {
         let filters = self.filters();
+        let mut conversations: Vec<Conversation> = self.inbox.visible(&filters).into_iter().cloned().collect();
+        // The chat open in the big WhatsApp chat stays in view when the list leaves it out (a muted
+        // group picked from the gateway's chats): its new messages and replies still show.
+        if let Some(open) = self.open_chat.as_ref().and_then(|id| self.inbox.conversations.get(id)) {
+            if !filters.ignored.contains(&open.id) && !conversations.iter().any(|c| c.id == open.id) {
+                conversations.push(open.clone());
+            }
+        }
         IslandView {
             on: self.provider.is_some(),
             link: self.link.clone(),
-            conversations: self.inbox.visible(&filters).into_iter().cloned().collect(),
+            conversations,
             unread: self.inbox.visible_unread(&filters),
             sending: self.sending,
             send_error: self.send_error.clone(),
@@ -898,7 +919,7 @@ fn open(chat: &str) {
         if let Some((key, last)) = receipt {
             let _ = provider.mark_read(&key, last.as_deref()).await;
         }
-        let Ok(history) = provider.messages(&chat, 10, me.as_deref()).await else { return };
+        let Ok(history) = provider.messages(&chat, 10, None, me.as_deref()).await else { return };
         {
             let mut c = ctl();
             if c.generation != gen {
@@ -914,10 +935,58 @@ fn open(chat: &str) {
 }
 
 fn close(chat: &str) {
-    let mut c = ctl();
-    if c.open_chat.as_deref() == Some(model::normalized(chat).as_str()) {
-        c.open_chat = None;
+    {
+        let mut c = ctl();
+        if c.open_chat.as_deref() == Some(model::normalized(chat).as_str()) {
+            c.open_chat = None;
+        }
     }
+    // A muted group kept in view while it was open leaves the list again.
+    changed();
+}
+
+/// The gateway's own latest chats, for the big WhatsApp chat's list (the inbox only has those
+/// with messages since Coucou started): ignored ones and non-chats (status, channels) left out.
+async fn chats() -> Vec<ChatSummary> {
+    let (provider, ignored) = {
+        let c = ctl();
+        (c.provider.clone(), c.filters().ignored)
+    };
+    let Some(provider) = provider else { return vec![] };
+    let Ok(list) = provider.chats().await else { return vec![] };
+    list.into_iter()
+        .map(|(id, name, last_activity)| (model::normalized(&id), name, last_activity))
+        .filter(|(id, _, _)| is_chat(id) && !ignored.contains(id))
+        .map(|(id, name, last_activity)| ChatSummary {
+            name: if name.is_empty() { model::display_number(&id) } else { name },
+            is_group: model::is_group(&id),
+            id,
+            last_activity,
+        })
+        .collect()
+}
+
+/// A person or a group: not the status broadcast, a channel or a broadcast list.
+fn is_chat(id: &str) -> bool {
+    id.ends_with("@s.whatsapp.net") || id.ends_with("@g.us") || id.ends_with("@lid")
+}
+
+/// A page of one chat's history for the big WhatsApp chat: handed to the page as it is, kept
+/// nowhere here (nor on disk). None when the gateway didn't answer.
+async fn history(chat: &str, before: Option<i64>) -> Option<Vec<Message>> {
+    let key = model::normalized(chat);
+    let (provider, me) = {
+        let c = ctl();
+        if c.prefs.ignored.contains(&key) {
+            return Some(vec![]);
+        }
+        (c.provider.clone()?, c.me.clone())
+    };
+    let mut page = provider.messages(&key, HISTORY_PAGE, before, me.as_deref()).await.ok()?;
+    for m in &mut page {
+        m.chat = model::normalized(&m.chat);
+    }
+    Some(page)
 }
 
 /// Sends a reply: only to a conversation already in the inbox, one at a time, a few a minute, and
@@ -1087,6 +1156,18 @@ pub fn whatsapp_close(window: WebviewWindow, chat: String) -> Result<(), String>
     only(&window, crate::island::WINDOW_LABEL)?;
     close(&chat);
     Ok(())
+}
+
+#[tauri::command]
+pub async fn whatsapp_chats(window: WebviewWindow) -> Result<Vec<ChatSummary>, String> {
+    only(&window, crate::island::WINDOW_LABEL)?;
+    Ok(chats().await)
+}
+
+#[tauri::command]
+pub async fn whatsapp_history(window: WebviewWindow, chat: String, before: Option<i64>) -> Result<Vec<Message>, String> {
+    only(&window, crate::island::WINDOW_LABEL)?;
+    history(&chat, before).await.ok_or_else(|| "the gateway didn't answer".into())
 }
 
 /// Enter or the send button in the island's card: the only way a message leaves Coucou.
@@ -1269,6 +1350,20 @@ mod tests {
         let (fresh, _) = ingest(&mut c, vec![msg("5", "33612345678@s.whatsapp.net", "x")]);
         assert_eq!(fresh, None);
         assert!(c.island_view().conversations.is_empty());
+    }
+
+    #[test]
+    fn the_open_chat_stays_in_view_even_a_muted_group() {
+        let mut c = fresh_ctl();
+        ingest(&mut c, vec![msg("g1", "120363@g.us", "hi all")]);
+        assert!(c.island_view().conversations.is_empty(), "a muted group stays out of the list");
+        c.open_chat = Some("120363@g.us".into());
+        assert_eq!(c.island_view().conversations.len(), 1, "but not while it is open");
+        assert_eq!(c.island_view().unread, 0, "nor does it count");
+        c.prefs.ignored = vec!["120363@g.us".into()];
+        assert!(c.island_view().conversations.is_empty(), "ignored stays ignored");
+        assert!(is_chat("336@s.whatsapp.net") && is_chat("120363@g.us") && is_chat("251556@lid"));
+        assert!(!is_chat("status@broadcast") && !is_chat("1203@newsletter"));
     }
 
     #[test]

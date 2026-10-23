@@ -1059,6 +1059,8 @@ pub fn run() {
             whatsapp::whatsapp_island,
             whatsapp::whatsapp_open,
             whatsapp::whatsapp_close,
+            whatsapp::whatsapp_chats,
+            whatsapp::whatsapp_history,
             whatsapp::whatsapp_send,
             whatsapp::whatsapp_ignore,
             whatsapp::whatsapp_unignore,

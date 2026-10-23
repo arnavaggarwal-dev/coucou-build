@@ -9,7 +9,7 @@ import type { MediaFile, NowPlaying, Settings } from "./state";
 import type { RecapHistory, RecapPrefs } from "../recap/summary";
 import type { SpotifyState } from "./spotify";
 import type { UpdateStatus } from "./update";
-import type { WaIslandView, WaSettingsView, WaTestResult } from "./whatsapp";
+import type { WaChatSummary, WaIslandView, WaMessage, WaSettingsView, WaTestResult } from "./whatsapp";
 import type { Outfit } from "../mochi/wardrobe";
 
 export const IS_TAURI =
@@ -525,6 +525,10 @@ export const Bridge = {
   /** A conversation opened in the card: its latest messages, the receipt if Settings says so. */
   whatsappOpen: (chat: string) => call<void>("whatsapp_open", { chat }),
   whatsappClose: (chat: string) => call<void>("whatsapp_close", { chat }),
+  /** The big WhatsApp chat: the gateway's latest chats, and a page of one chat's history up to
+   *  `before` (ms; null for the latest). Null when the gateway didn't answer. */
+  whatsappChats: () => call<WaChatSummary[]>("whatsapp_chats"),
+  whatsappHistory: (chat: string, before: number | null) => call<WaMessage[]>("whatsapp_history", { chat, before }),
   /** Enter or the send button only. True once the gateway took it. */
   whatsappSend: (chat: string, text: string) => call<boolean>("whatsapp_send", { chat, text }),
   /** A chat id, or (Settings) a phone number. */
