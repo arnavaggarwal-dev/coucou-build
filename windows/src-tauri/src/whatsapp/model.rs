@@ -114,10 +114,12 @@ pub fn display_number(jid: &str) -> String {
     }
 }
 
-/// A chat's name that names nothing: empty, or only its number ("+120363…" or the bare id part).
+/// A chat's name that names nothing: empty, only its number ("+120363…" or the bare id part), or
+/// GOWA's stand-in for a group it hasn't named yet ("Group 120363…").
 pub fn unnamed(jid: &str, name: &str) -> bool {
     let name = name.trim();
-    name.is_empty() || name == display_number(jid) || name == user_part(jid)
+    let id = user_part(jid);
+    name.is_empty() || name == display_number(jid) || name == id || name.strip_prefix("Group ") == Some(id)
 }
 
 /// The same person under its several forms: "33612345678:12@s.whatsapp.net" and
@@ -532,6 +534,8 @@ mod tests {
         assert!(unnamed("120363401@g.us", " "));
         assert!(unnamed("120363401@g.us", "+120363401"));
         assert!(unnamed("120363401@g.us", "120363401"));
+        assert!(unnamed("120363401@g.us", "Group 120363401"));
+        assert!(!unnamed("120363401@g.us", "Group chat"));
         assert!(!unnamed("120363401@g.us", "Famille"));
         assert!(!unnamed("120363401@g.us", "120363402"), "another number is a name someone gave");
     }

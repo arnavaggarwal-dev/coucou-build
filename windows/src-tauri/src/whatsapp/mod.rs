@@ -873,7 +873,7 @@ fn needs_name(c: &mut Ctl, chat: &str) -> Option<String> {
         return None;
     }
     let conv = c.inbox.conversations.get(chat)?;
-    if conv.name != model::display_number(chat) {
+    if !model::unnamed(chat, &conv.name) {
         return None;
     }
     c.naming.insert(chat.to_string());
