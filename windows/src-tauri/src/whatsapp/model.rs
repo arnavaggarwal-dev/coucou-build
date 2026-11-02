@@ -99,6 +99,12 @@ pub fn is_group(jid: &str) -> bool {
     jid.ends_with("@g.us")
 }
 
+/// Status updates (status@broadcast), broadcast lists and channels (…@newsletter) come in as
+/// messages too, but they are not conversations: a contact's Status would become a chat named after them.
+pub fn is_conversation(jid: &str) -> bool {
+    !jid.ends_with("@broadcast") && !jid.ends_with("@newsletter")
+}
+
 fn user_part(jid: &str) -> &str {
     let user = jid.split('@').next().unwrap_or(jid);
     user.split(':').next().unwrap_or(user)
@@ -114,8 +120,8 @@ pub fn display_number(jid: &str) -> String {
     }
 }
 
-/// A chat's name that names nothing: empty, only its number ("+120363…" or the bare id part), or
-/// GOWA's stand-in for a group it hasn't named yet ("Group 120363…").
+/// A chat's name that names nothing: empty, only its number, or GOWA's stand-in for a group it
+/// hasn't named yet ("Group 120363…").
 pub fn unnamed(jid: &str, name: &str) -> bool {
     let name = name.trim();
     let id = user_part(jid);
@@ -191,7 +197,7 @@ impl Inbox {
             return Outcome::Duplicate;
         }
         let chat = normalized(&message.chat);
-        if filters.ignored.contains(&chat) {
+        if !is_conversation(&chat) || filters.ignored.contains(&chat) {
             return Outcome::Ignored;
         }
         self.seen.insert(message.id.clone());
@@ -445,6 +451,19 @@ mod tests {
     }
 
     #[test]
+    fn status_updates_and_channels_are_not_conversations() {
+        let mut inbox = Inbox::default();
+        let f = Filters::default();
+        let mut status = Message::new("1", "status@broadcast", "33600000001@s.whatsapp.net", "https://vm.tiktok.com/x", 0);
+        status.sender_name = "David".into();
+        assert_eq!(inbox.add(status, &f, None, false), Outcome::Ignored);
+        assert_eq!(inbox.add(msg("2", "120363000000000001@newsletter", 0), &f, None, false), Outcome::Ignored);
+        assert!(inbox.conversations.is_empty());
+        assert_eq!(inbox.total_unread(), 0);
+        assert!(is_conversation("33600000001@s.whatsapp.net") && is_conversation("120363@g.us") && is_conversation("251556368777322@lid"));
+    }
+
+    #[test]
     fn one_conversation_per_chat() {
         let mut inbox = Inbox::default();
         let f = Filters::default();
@@ -527,16 +546,16 @@ mod tests {
         assert!(!text_mentions("hey @33612345678", None));
         assert_eq!(display_number("33612345678:3@s.whatsapp.net"), "+33612345678");
         assert_eq!(display_number("abc@lid"), "abc");
+        assert!(unnamed("120363401@g.us", "+120363401"));
+        assert!(unnamed("120363401@g.us", "Group 120363401"));
+        assert!(!unnamed("120363401@g.us", "Group chat"));
+        assert!(!unnamed("120363401@g.us", "Famille"));
         assert_eq!(normalized("33612345678:12@c.us"), "33612345678@s.whatsapp.net");
         assert_eq!(normalized("nojid"), "nojid");
         // A group GOWA lists without its name: empty, or its number either way.
         assert!(unnamed("120363401@g.us", ""));
         assert!(unnamed("120363401@g.us", " "));
-        assert!(unnamed("120363401@g.us", "+120363401"));
         assert!(unnamed("120363401@g.us", "120363401"));
-        assert!(unnamed("120363401@g.us", "Group 120363401"));
-        assert!(!unnamed("120363401@g.us", "Group chat"));
-        assert!(!unnamed("120363401@g.us", "Famille"));
         assert!(!unnamed("120363401@g.us", "120363402"), "another number is a name someone gave");
     }
 

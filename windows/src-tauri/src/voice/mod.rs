@@ -56,7 +56,7 @@ static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 /// Whether « OK Coucou » can run: the voice model and a Claude key.
 pub fn requirements_met() -> bool {
     // Fork: or through Claude Code, without a key.
-    speech::is_ready() && (crate::secrets::present(crate::claude::KEY) || crate::claude_code::find().is_some())
+    speech::is_ready() && crate::claude::ready()
 }
 
 /// Starts or stops listening to follow the preference.
@@ -509,7 +509,9 @@ fn find_app(wanted: &str) -> Option<(String, Box<dyn FnOnce()>)> {
     }
     let (_, label, id) = best?;
     Some((label, Box::new(move || {
-        let _ = std::process::Command::new("gtk-launch").arg(&id).spawn();
+        let mut cmd = std::process::Command::new("gtk-launch");
+        cmd.arg(&id);
+        let _ = crate::platform::no_console(&mut cmd).spawn();
     })))
 }
 

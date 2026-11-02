@@ -60,7 +60,7 @@ const ask = (id, extra = {}) =>
 test("the relay hanging up takes the card down at once, with nobody left to release", () => {
   ask("r1");
   assert.equal(State.pendingApproval?.requestId, "r1");
-  emit("hook-resolved", "r1");
+  emit("approval-expired", "r1");
   assert.equal(State.pendingApproval, null);
   assert.deepEqual(sent("approval_decline"), []);
   assert.ok(asked.includes("dropPin"));
@@ -68,7 +68,7 @@ test("the relay hanging up takes the card down at once, with nobody left to rele
 
 test("a hang-up for another request leaves the card alone", () => {
   ask("r1");
-  emit("hook-resolved", "r0");
+  emit("approval-expired", "r0");
   assert.equal(State.pendingApproval?.requestId, "r1");
 });
 

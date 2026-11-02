@@ -1,295 +1,243 @@
-// Claude Code as a chat provider: the user's own `claude` CLI answers in print
-// mode with their Claude subscription, so no API key is needed. Each turn is
-// one headless run in an empty folder of its own: web search and web fetch are
-// its only tools (a question can never edit a file or run a command), safe mode
-// leaves out the user's hooks, plugins, MCP servers and CLAUDE.md, and nothing
-// is saved as a session. It is also where a Claude turn goes when there is no
-// API key or no credit left on it (chat.rs).
+// The Claude Code relay: with no Anthropic API key saved, the chat, Flow's
+// clean-up and the notes of a call are answered by the user's own Claude Code
+// (`claude -p`), signed in with their own account. Coucou reads no credential
+// and makes no network call of its own: Claude Code answers exactly as it does
+// in a terminal.
+//
+// Each run is kept apart from the user's sessions: no settings file is loaded
+// (so no hooks: Coucou's own would show the relay's runs as sessions), no MCP
+// server, no skill, nothing saved to resume, and it runs in an empty folder of
+// Coucou's, so no CLAUDE.md is picked up. It may only use the tools it is
+// given: web search for the chat, and reading the one dropped file.
 
-use std::io::{BufRead, BufReader, Read, Write};
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::{mpsc, Mutex};
 use std::time::Duration;
 
-use serde_json::{json, Value};
+use serde_json::Value;
+use tokio::io::AsyncWriteExt;
 
-use tauri::{AppHandle, Emitter};
+use crate::chat::{self, ChatContext, ModelInfo};
+use crate::i18n::{t, tf};
+use crate::{platform, settings};
 
-use crate::chat::{self, Chat, ChatContext, ChatReply, ModelInfo};
-use crate::island::WINDOW_LABEL;
-use crate::i18n::t;
-use crate::platform;
+/// The models offered in the picker without a key. Claude Code takes these ids
+/// as they are, and so does the API once a key is added.
+const MODELS: [(&str, &str); 3] = [
+    ("claude-opus-5", "Claude Opus 5"),
+    ("claude-sonnet-5", "Claude Sonnet 5"),
+    ("claude-haiku-4-5", "Claude Haiku 4.5"),
+];
 
-pub const PROVIDER: &str = "claude-code";
-pub const DEFAULT_MODEL: &str = "claude-haiku-5-5";
-const TIMEOUT: Duration = Duration::from_secs(180);
-/// All we are willing to read of its answer.
-const MAX_OUTPUT: u64 = 4 * 1024 * 1024;
-const TOOLS: &str = "WebSearch,WebFetch";
-/// Fork: the longest a one-shot run for Flow may live (clean-up, a call's
-/// summary, « OK Coucou »): the CLI is ended after this, whatever it was doing.
-pub const ONE_SHOT_MAX: Duration = Duration::from_secs(30);
+/// What one run of `claude -p` is asked.
+pub struct Request<'a> {
+    pub model: &'a str,
+    pub system: &'a str,
+    pub prompt: &'a str,
+    /// Built-in tools the run may use; none at all when empty.
+    pub tools: &'a [&'a str],
+    /// A folder the run may read from, besides its own.
+    pub read_dir: Option<&'a Path>,
+    pub timeout: Duration,
+}
 
-/// The run in progress, so a new chat ends it.
-static RUNNING: Mutex<Option<u32>> = Mutex::new(None);
-
-pub fn find() -> Option<PathBuf> {
+/// The Claude Code CLI, when it is installed.
+pub fn exe() -> Option<PathBuf> {
     platform::cli_candidates("claude").into_iter().next()
 }
 
-fn not_installed() -> String {
-    t("Claude Code isn't installed.")
+pub fn available() -> bool {
+    exe().is_some()
 }
 
-/// Ends the run in progress, if any: the chat was reset or closed.
-pub fn stop() {
-    if let Some(pid) = RUNNING.lock().unwrap().take() {
-        platform::kill_tree(pid);
+/// The models offered in the picker when Claude Code answers.
+pub fn models() -> Vec<ModelInfo> {
+    MODELS.iter().map(|(id, label)| ModelInfo { id: (*id).into(), label: (*label).into() }).collect()
+}
+
+/// Runs `claude -p` once and returns the text of its answer, or why there is none.
+pub async fn ask(request: &Request<'_>) -> Result<String, String> {
+    let exe = exe().ok_or_else(|| t("Claude Code is not installed."))?;
+    let workdir = settings::local_dir().join("relay");
+    std::fs::create_dir_all(&workdir).map_err(|e| e.to_string())?;
+
+    let mut cmd = tokio::process::Command::new(&exe);
+    cmd.args(args(request))
+        .current_dir(&workdir)
+        .env_remove("CLAUDECODE")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    // An npm install is a `#!/usr/bin/env node` script: its own folder first on
+    // PATH so it finds its Node, as codex_plan.rs does for Codex.
+    if let Some(dir) = exe.parent() {
+        let mut dirs = vec![dir.to_path_buf()];
+        if let Some(path) = std::env::var_os("PATH") {
+            dirs.extend(std::env::split_paths(&path));
+        }
+        if let Ok(joined) = std::env::join_paths(dirs) {
+            cmd.env("PATH", joined);
+        }
     }
+    platform::no_console(cmd.as_std_mut());
+
+    let mut child = cmd.spawn().map_err(|e| tf("Could not start Claude Code: {error}", &[("error", &e.to_string())]))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(request.prompt.as_bytes()).await.map_err(|e| e.to_string())?;
+    }
+    let output = tokio::time::timeout(request.timeout, child.wait_with_output())
+        .await
+        .map_err(|_| t("Claude Code took too long to answer."))?
+        .map_err(|e| e.to_string())?;
+    parse(&output.stdout).map_err(|err| {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        match stderr.trim() {
+            "" => err,
+            detail => format!("{err} ({})", detail.lines().last().unwrap_or(detail)),
+        }
+    })
 }
 
-/// The command line after `claude`. The system prompt is read from a file:
-/// a .cmd install would otherwise pass it through cmd.exe's quoting.
-pub fn args(model: &str, system_file: &Path) -> Vec<String> {
-    args_with(model, system_file, TOOLS)
-}
-
-/// The same with a choice of tools ("" for none at all).
-fn args_with(model: &str, system_file: &Path, tools: &str) -> Vec<String> {
-    let mut out: Vec<String> = [
-        // stream-json + partial messages: the reply streams in as it is written.
-        "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
-        "--no-session-persistence", "--safe-mode",
-        "--tools", tools, "--allowedTools", tools, "--system-prompt-file",
+fn args(request: &Request<'_>) -> Vec<OsString> {
+    let mut out: Vec<OsString> = [
+        "-p",
+        "--output-format",
+        "json",
+        "--model",
+        request.model,
+        "--system-prompt",
+        request.system,
+        "--tools",
     ]
-    .map(String::from)
-    .to_vec();
-    out.push(system_file.to_string_lossy().into_owned());
-    if !model.is_empty() {
-        out.extend(["--model".to_string(), model.to_string()]);
+    .iter()
+    .map(OsString::from)
+    .collect();
+    out.push(request.tools.join(",").into());
+    if !request.tools.is_empty() {
+        out.push("--allowedTools".into());
+        out.push(request.tools.join(",").into());
+    }
+    if let Some(dir) = request.read_dir {
+        out.push("--add-dir".into());
+        out.push(dir.as_os_str().to_owned());
+    }
+    for flag in ["--setting-sources", "", "--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands"] {
+        out.push(flag.into());
     }
     out
 }
 
-/// What goes to its input: the plain turns so far, then the new question.
-pub fn prompt(history: &[Value], question: &str) -> String {
-    if history.is_empty() {
-        return question.to_string();
+/// The answer's text from `claude -p --output-format json`.
+fn parse(stdout: &[u8]) -> Result<String, String> {
+    let json: Value = serde_json::from_slice(stdout).map_err(|_| t("Claude Code gave no answer."))?;
+    let result = json.get("result").and_then(Value::as_str).unwrap_or("").trim();
+    if json.get("is_error").and_then(Value::as_bool).unwrap_or(false) {
+        let why = if result.is_empty() { t("Claude Code could not answer.") } else { result.to_string() };
+        return Err(why);
     }
-    let mut out = String::from("The conversation so far:\n\n");
-    for m in history {
-        let who = if m["role"] == "user" { "User" } else { "Assistant" };
-        out.push_str(&format!("{who}: {}\n\n", m["content"].as_str().unwrap_or("")));
-    }
-    out.push_str(&format!("The user's new message:\n\n{question}"));
-    out
-}
-
-/// The text a streamed line adds to the reply, if it is a text delta.
-pub fn delta(line: &str) -> Option<String> {
-    let v: Value = serde_json::from_str(line.trim()).ok()?;
-    let d = &v["event"]["delta"];
-    (v["type"] == "stream_event" && d["type"] == "text_delta").then(|| d["text"].as_str().unwrap_or("").to_string())
-}
-
-/// The answer from the stream: the last line that is its result.
-pub fn parse(out: &str) -> Result<String, String> {
-    let result = out
-        .lines()
-        .rev()
-        .find_map(|l| serde_json::from_str::<Value>(l.trim()).ok().filter(|v| v["type"] == "result"))
-        .ok_or_else(|| t("Unexpected API response."))?;
-    let text = result["result"].as_str().unwrap_or("").trim().to_string();
-    if result["is_error"] == true {
-        return Err(format!("Claude Code: {text}"));
-    }
-    if text.is_empty() {
+    if result.is_empty() {
         return Err(t("No response text."));
     }
-    Ok(text)
+    Ok(result.to_string())
 }
 
-/// True when a Claude API error means the key has no credit left (402, a low
-/// credit balance, billing or quota), which Claude Code can answer instead.
-pub fn out_of_credit(err: &str) -> bool {
-    let e = err.to_lowercase();
-    ["claude api 402", "credit balance", "billing", "insufficient", "quota"].iter().any(|w| e.contains(w))
-}
-
-/// One chat turn through the CLI.
-pub async fn send(app: &AppHandle, chat: &Chat, model: &str, query: String, context: Option<ChatContext>) -> Result<ChatReply, String> {
-    let exe = find().ok_or_else(not_installed)?;
-    let turn = chat.begin(PROVIDER);
-    let question = chat::plain_question(turn.first, context.as_ref(), &query);
-    // A dropped text file goes along with the first question, as with Claude.
-    let mut asked = question.clone();
-    if let Some(ChatContext::File { path, .. }) = context.as_ref().filter(|_| turn.first) {
-        if let Some((text, _)) = chat::read_text(path) {
-            asked = format!("File contents:\n{text}\n\n{question}");
+/// One chat turn as a single prompt: the earlier plain turns, the context the
+/// first question carries, then the question.
+pub fn chat_prompt(history: &[Value], first: bool, context: Option<&ChatContext>, query: &str) -> String {
+    let mut out = String::new();
+    if !history.is_empty() {
+        out.push_str("The conversation so far:\n<conversation>\n");
+        for turn in history {
+            let role = turn.get("role").and_then(Value::as_str).unwrap_or("user");
+            let text = turn.get("content").and_then(Value::as_str).unwrap_or("");
+            out.push_str(&format!("<{role}>\n{text}\n</{role}>\n"));
         }
+        out.push_str("</conversation>\n\nThe user's new message:\n");
     }
-    let input = prompt(&turn.history, &asked);
-    let args = args(model, &base_dir().join("system.txt"));
-    let system = chat.system_prompt(true);
-    let app = app.clone();
-    let shown = move |so_far: &str| {
-        let _ = app.emit_to(WINDOW_LABEL, "chat-delta", so_far);
-    };
-    let text = tauri::async_runtime::spawn_blocking(move || run(&exe, &args, &base_dir().join("system.txt"), &system, &input, shown, TIMEOUT, true))
-        .await
-        .map_err(|e| e.to_string())??;
-    // The history keeps what the CLI was sent, file contents included: each
-    // turn is a fresh process, so later turns only know the file from here.
-    chat.commit(
-        &turn,
-        json!({ "role": "user", "content": asked }),
-        json!({ "role": "assistant", "content": text }),
-        &asked,
-        &text,
-    );
-    Ok(ChatReply::text(text))
-}
-
-fn base_dir() -> PathBuf {
-    std::env::temp_dir().join("coucou-claude-code")
-}
-
-/// Fork: one question without a chat, for Flow when there is no Claude API key:
-/// the user's Claude Code subscription answers, with the cheapest, fastest
-/// Haiku, no tools unless `web` (web search and fetch only), nothing saved, and
-/// the run ended after `timeout` (at most ONE_SHOT_MAX).
-pub async fn complete(system: &str, user: &str, timeout: Duration, web: bool) -> Result<String, String> {
-    let exe = find().ok_or_else(not_installed)?;
-    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    // A system file of its own: a chat turn may be writing system.txt meanwhile.
-    let file = base_dir().join(format!("one-shot-{}-{n}.txt", std::process::id()));
-    let args = args_with(DEFAULT_MODEL, &file, if web { TOOLS } else { "" });
-    let (system, user) = (system.to_string(), user.to_string());
-    let timeout = timeout.min(ONE_SHOT_MAX);
-    let result = tauri::async_runtime::spawn_blocking(move || {
-        let out = run(&exe, &args, &file, &system, &user, |_: &str| {}, timeout, false);
-        let _ = std::fs::remove_file(&file);
-        out
-    })
-    .await
-    .map_err(|e| e.to_string())?;
-    result
-}
-
-fn run(
-    exe: &Path,
-    args: &[String],
-    system_file: &Path,
-    system: &str,
-    input: &str,
-    shown: impl Fn(&str) + Send + 'static,
-    timeout: Duration,
-    chat_turn: bool,
-) -> Result<String, String> {
-    let work = base_dir().join("work");
-    std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
-    std::fs::write(system_file, system).map_err(|e| e.to_string())?;
-    let mut cmd = platform::cli_command(exe);
-    cmd.args(args).current_dir(&work).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
-    let mut child = cmd.spawn().map_err(|_| not_installed())?;
-    // Only a chat turn is the one a new chat ends (stop).
-    if chat_turn {
-        *RUNNING.lock().unwrap() = Some(child.id());
-    }
-    let (mut stdin, stdout) = (child.stdin.take().unwrap(), child.stdout.take().unwrap());
-    let input = input.to_string();
-    let (tx, rx) = mpsc::channel();
-    std::thread::spawn(move || {
-        let _ = stdin.write_all(input.as_bytes());
-        drop(stdin);
-        let (mut out, mut so_far) = (String::new(), String::new());
-        for line in BufReader::new(stdout.take(MAX_OUTPUT)).lines().map_while(Result::ok) {
-            if let Some(text) = delta(&line) {
-                so_far.push_str(&text);
-                shown(&so_far);
-            }
-            out.push_str(&line);
-            out.push('\n');
+    match context.filter(|_| first) {
+        Some(ChatContext::File { name, path }) => {
+            out.push_str(&format!("File: {name} (read it at {path})\n\n"));
         }
-        let _ = tx.send(out);
-    });
-    let out = rx.recv_timeout(timeout);
-    let ours = !chat_turn || RUNNING.lock().unwrap().take_if(|pid| *pid == child.id()).is_some();
-    if out.is_err() && ours {
-        platform::kill_tree(child.id());
+        Some(ChatContext::Window { app_name, title, url }) => {
+            out.push_str(&chat::window_line(app_name, title, url.as_deref()));
+            out.push_str("\n\n");
+        }
+        None => {}
     }
-    let _ = child.kill();
-    let _ = child.wait();
-    parse(&out.map_err(|_| t("Claude Code took too long to answer."))?)
-}
-
-/// The models it offers: Haiku 5.5 (the default, pinned), then the CLI's
-/// aliases for the latest Sonnet and Opus.
-pub fn models() -> Result<Vec<ModelInfo>, String> {
-    find().ok_or_else(not_installed)?;
-    Ok([(DEFAULT_MODEL, "Haiku 5.5"), ("sonnet", "Sonnet"), ("opus", "Opus")]
-        .map(|(id, label)| ModelInfo { id: id.into(), label: format!("Claude {label}") })
-        .to_vec())
+    out.push_str(query);
+    out
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
-    #[test]
-    fn it_runs_headless_with_web_tools_only_and_no_saved_session() {
-        let a = args("opus", Path::new("/tmp/system.txt"));
-        let at = |flag: &str| a.iter().position(|x| x == flag).map(|i| a[i + 1].as_str());
-        assert_eq!(a[0], "-p");
-        assert_eq!(at("--output-format"), Some("stream-json"));
-        assert!(a.contains(&"--verbose".into()) && a.contains(&"--include-partial-messages".into()));
-        assert_eq!(at("--tools"), Some("WebSearch,WebFetch"));
-        assert_eq!(at("--allowedTools"), Some("WebSearch,WebFetch"));
-        assert_eq!(at("--system-prompt-file"), Some("/tmp/system.txt"));
-        assert_eq!(at("--model"), Some("opus"));
-        assert!(a.contains(&"--no-session-persistence".into()) && a.contains(&"--safe-mode".into()));
-        assert!(!args("", Path::new("s")).contains(&"--model".into()));
+    fn strings(args: &[OsString]) -> Vec<String> {
+        args.iter().map(|a| a.to_string_lossy().into_owned()).collect()
     }
 
     #[test]
-    fn only_text_deltas_stream_into_the_reply() {
-        let d = r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hel"}}}"#;
-        assert_eq!(delta(d).as_deref(), Some("Hel"));
-        assert_eq!(delta(r#"{"type":"stream_event","event":{"type":"message_start"}}"#), None);
-        assert_eq!(delta(r#"{"type":"result","result":"x"}"#), None);
-        assert_eq!(delta("[claude-code:unrecognized_model] noise"), None);
+    fn a_run_loads_no_settings_and_only_the_tools_it_is_given() {
+        let request = Request {
+            model: "claude-x",
+            system: "sys",
+            prompt: "hi",
+            tools: &[],
+            read_dir: None,
+            timeout: Duration::from_secs(1),
+        };
+        let a = strings(&args(&request));
+        assert_eq!(&a[..8], ["-p", "--output-format", "json", "--model", "claude-x", "--system-prompt", "sys", "--tools"]);
+        assert_eq!(a[8], "");
+        assert!(!a.contains(&"--allowedTools".to_string()));
+        assert!(!a.contains(&"--add-dir".to_string()));
+        let sources = a.iter().position(|x| x == "--setting-sources").unwrap();
+        assert_eq!(a[sources + 1], "");
+        for flag in ["--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands"] {
+            assert!(a.contains(&flag.to_string()), "{flag}");
+        }
+
+        let inbox = PathBuf::from("/tmp/inbox");
+        let request = Request { tools: &["WebSearch", "Read"], read_dir: Some(&inbox), ..request };
+        let a = strings(&args(&request));
+        assert_eq!(a[8], "WebSearch,Read");
+        let allowed = a.iter().position(|x| x == "--allowedTools").unwrap();
+        assert_eq!(a[allowed + 1], "WebSearch,Read");
+        let dir = a.iter().position(|x| x == "--add-dir").unwrap();
+        assert_eq!(a[dir + 1], "/tmp/inbox");
     }
 
     #[test]
-    fn the_conversation_is_folded_into_its_input() {
-        assert_eq!(prompt(&[], "hi"), "hi");
-        let history = [json!({"role":"user","content":"q1"}), json!({"role":"assistant","content":"a1"})];
+    fn the_answer_or_the_error_comes_from_the_result_field() {
+        assert_eq!(parse(br#"{"type":"result","is_error":false,"result":" Hi "}"#).unwrap(), "Hi");
+        assert_eq!(parse(br#"{"is_error":true,"result":"Not logged in"}"#).unwrap_err(), "Not logged in");
+        assert_eq!(parse(br#"{"is_error":true}"#).unwrap_err(), "Claude Code could not answer.");
+        assert_eq!(parse(br#"{"is_error":false,"result":"  "}"#).unwrap_err(), "No response text.");
+        assert_eq!(parse(b"[claude-code:unrecognized_model]").unwrap_err(), "Claude Code gave no answer.");
+    }
+
+    #[test]
+    fn the_prompt_carries_the_history_then_the_context_then_the_question() {
+        assert_eq!(chat_prompt(&[], true, None, "q"), "q");
+        let history = vec![json!({"role":"user","content":"a"}), json!({"role":"assistant","content":"b"})];
+        let p = chat_prompt(&history, false, None, "c");
         assert_eq!(
-            prompt(&history, "q2"),
-            "The conversation so far:\n\nUser: q1\n\nAssistant: a1\n\nThe user's new message:\n\nq2"
+            p,
+            "The conversation so far:\n<conversation>\n<user>\na\n</user>\n<assistant>\nb\n</assistant>\n</conversation>\n\nThe user's new message:\nc"
         );
+        let file = ChatContext::File { name: "a.pdf".into(), path: "/inbox/a.pdf".into() };
+        assert_eq!(chat_prompt(&[], true, Some(&file), "why?"), "File: a.pdf (read it at /inbox/a.pdf)\n\nwhy?");
+        assert!(chat_prompt(&history, false, Some(&file), "why?").ends_with("message:\nwhy?"));
+        let win = ChatContext::Window { app_name: "Code".into(), title: "main.rs".into(), url: None };
+        assert_eq!(chat_prompt(&[], true, Some(&win), "q"), "Context — App: Code, Window: main.rs\n\nq");
     }
 
     #[test]
-    fn the_answer_is_the_result_line_and_an_error_says_so() {
-        let ok = r#"{"type":"result","is_error":false,"result":" Paris.\n{\"mood\":\"happy\"} "}"#;
-        assert_eq!(parse(&format!("noise\n{ok}\n")), Ok("Paris.\n{\"mood\":\"happy\"}".into()));
-        let err = r#"{"type":"result","is_error":true,"result":"Not logged in"}"#;
-        assert_eq!(parse(err), Err("Claude Code: Not logged in".into()));
-        assert!(parse("").is_err());
-        assert!(parse(r#"{"type":"result","is_error":false,"result":""}"#).is_err());
-        assert!(parse(r#"{"type":"system"}"#).is_err());
-    }
-
-    #[test]
-    fn only_credit_and_billing_errors_fall_back() {
-        assert!(out_of_credit("Claude API 402 Payment Required: x"));
-        assert!(out_of_credit("Claude API 400 Bad Request: Your credit balance is too low to access the Anthropic API."));
-        assert!(out_of_credit("Claude API 429 Too Many Requests: billing limit reached"));
-        assert!(!out_of_credit("Claude API 401 Unauthorized: invalid x-api-key"));
-        assert!(!out_of_credit("Claude API 529: Overloaded"));
-        assert!(!out_of_credit("Network error: timed out"));
+    fn the_picker_offers_the_same_models_as_the_settings() {
+        let ids: Vec<String> = models().into_iter().map(|m| m.id).collect();
+        assert_eq!(ids, ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"]);
     }
 }

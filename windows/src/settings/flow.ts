@@ -10,6 +10,7 @@ import { FlowBridge, type Edge, type FlowKey, type VoiceOutput } from "../core/f
 import type { HubContext } from "../hub/shell";
 import { keyKeycap, keycap } from "../hub/ui";
 import { modelsControl } from "../hub/pages/flowsettings";
+import { pageSave } from "../hub/save";
 import { card, item, segmented, toggle } from "./parts";
 
 const ELEVEN = "elevenlabs-api-key";
@@ -45,7 +46,7 @@ export function flowCards(ctx: HubContext): HTMLElement[] {
     ["right_shift", t("Right {0}", { 0: "Shift" })],
     ["left_ctrl_super", status.platform === "windows" ? "Ctrl + Win" : "Ctrl + Super"],
   ];
-  const edges: [Edge, string][] = [["bottom", t("Bottom")], ["left", t("Left")], ["right", t("Right")]];
+  const edges: [Edge, string][] = [["bottom", t("Bottom")], ["bottom-left", t("Bottom-left")], ["bottom-right", t("Bottom-right")], ["left", t("Left")], ["right", t("Right")]];
   const wayland = status.keys === "wayland";
   // Fork: turning dictation on and the Parakeet download live on Flow's
   // Dictation tab only, so they aren't here twice.
@@ -54,7 +55,7 @@ export function flowCards(ctx: HubContext): HTMLElement[] {
       ? item(t("Hold to dictate"), null, keyKeycap("wayland", status.platform))
       : item(t("Hold to dictate"), prefs.key === "right_alt" ? t("On a keyboard with AltGr, the right Alt types characters: pick another key.") : null,
         select(keys, prefs.key, (key) => void ctx.setPrefs((p) => (p.key = key)).then(() => ctx.navigate("flowsettings")))),
-    item(t("Where the pill is"), null, seg(t("Where the pill is"), edges, prefs.edge, (edge) => void ctx.setPrefs((p) => (p.edge = edge)))),
+    item(t("Where the pill is"), null, select(edges, prefs.edge, (edge) => void ctx.setPrefs((p) => (p.edge = edge)))),
     item(t("Hands-free"), t("Tap twice, speak as long as you like, tap once to paste."), keyKeycap(wayland ? "wayland" : prefs.key, status.platform, true)),
     item(t("Live transcription"), t("Words appear in the pill as you speak, and the paste comes faster when you let go. Uses more of the processor while you talk."),
       toggle(prefs.stream, (on) => void ctx.setPrefs((p) => (p.stream = on)))),
@@ -71,17 +72,26 @@ export function flowCards(ctx: HubContext): HTMLElement[] {
   if (prefs.mic && !mics.some(([id]) => id === prefs.mic)) mics.push([prefs.mic, prefs.mic]);
 
   const confirmRow = h("div", { class: "row" });
+  const keep: [string, string][] = [["0", t("Don't keep")], ["7", t("7 days")], ["30", t("30 days")], ["365", t("1 year")], ["-1", t("Forever")]];
+  const privacy = card(t("Privacy"), null,
+    item(t("Keep the history"), null, select(keep, String(prefs.keepDays), (v) => void ctx.setPrefs((p) => (p.keepDays = Number(v))))),
+    confirmRow,
+    note(t("The history, the statistics and your notes stay on this computer, in Coucou's folder. Dictations are never saved as audio; a call's audio is deleted as soon as its transcript is written.")),
+  );
+  const saveErase = pageSave(privacy);
   const erase = () => {
     clear(confirmRow);
     confirmRow.append(
-      button(t("Erase the history"), () => void FlowBridge.clear(false)),
+      button(t("Erase the history"), () => void saveErase(() => FlowBridge.clear(false))),
       button(t("Erase everything"), () => {
         clear(confirmRow);
         confirmRow.append(
           h("span", { class: "hint", style: "flex:1", text: t("Erase the history and the statistics?") }),
           button(t("Erase everything"), () => {
-            void FlowBridge.clear(true);
-            erase();
+            void saveErase(async () => {
+              await FlowBridge.clear(true);
+              erase();
+            });
           }, "danger"),
           button(t("Cancel"), erase),
         );
@@ -89,7 +99,6 @@ export function flowCards(ctx: HubContext): HTMLElement[] {
     );
   };
   erase();
-  const keep: [string, string][] = [["0", t("Don't keep")], ["7", t("7 days")], ["30", t("30 days")], ["365", t("1 year")], ["-1", t("Forever")]];
 
   return [
     keysCard,
@@ -100,11 +109,7 @@ export function flowCards(ctx: HubContext): HTMLElement[] {
         select([["claude", t("Claude (your key)")], ["off", t("No summary")]], prefs.summaryEngine, (engine) => void ctx.setPrefs((p) => (p.summaryEngine = engine)))),
       note(t("Everything stays on this computer. Tell the people in the call that you are recording.")),
     ),
-    card(t("Privacy"), null,
-      item(t("Keep the history"), null, select(keep, String(prefs.keepDays), (v) => void ctx.setPrefs((p) => (p.keepDays = Number(v))))),
-      confirmRow,
-      note(t("The history, the statistics and your notes stay on this computer, in Coucou's folder. Dictations are never saved as audio; a call's audio is deleted as soon as its transcript is written.")),
-    ),
+    privacy,
   ];
 }
 

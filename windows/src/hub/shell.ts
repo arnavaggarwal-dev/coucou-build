@@ -13,7 +13,8 @@ import { keyLabel } from "./ui";
 
 export type PageId =
   | "dictation" | "notes" | "insights" | "dictionary" | "snippets" | "styles" | "flowsettings"
-  | "general" | "pills" | "agents" | "chat" | "voice" | "integrations" | "phone" | "shortcuts";
+  | "general" | "pills" | "agents" | "chat" | "voice" | "integrations" | "phone" | "shortcuts"
+  | "mailOverview" | "mailRules" | "mailBanned" | "mailVIP";
 
 interface PageDef {
   id: PageId;
@@ -44,7 +45,15 @@ export const NOTCH_PAGES: PageDef[] = [
   { id: "shortcuts", icon: "keyboard", title: () => t("Shortcuts"), subtitle: () => t("The keys that open the island and its actions.") },
 ];
 
-const ALL = [...FLOW_PAGES, ...NOTCH_PAGES];
+/** Mail (classic Outlook): Windows only, Linux has no Outlook. */
+export const MAIL_PAGES: PageDef[] = [
+  { id: "mailOverview", icon: "tray", title: () => t("Overview") },
+  { id: "mailRules", icon: "filter", title: () => t("Rules") },
+  { id: "mailBanned", icon: "nosign", title: () => t("Banned words") },
+  { id: "mailVIP", icon: "star", title: () => t("VIP") },
+];
+
+const ALL = [...FLOW_PAGES, ...NOTCH_PAGES, ...MAIL_PAGES];
 
 /**
  * Fork: the window is the settings alone, laid out by settings/main.ts
@@ -184,7 +193,10 @@ export async function startHub(root: HTMLElement, opts: HubOptions) {
     drawStatus();
   });
   return {
-    redraw: () => void show(current),
+    redraw: () => {
+      drawStatus();
+      void show(current);
+    },
     current: () => current,
   };
 }

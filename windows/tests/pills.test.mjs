@@ -46,6 +46,7 @@ test("the catalog holds the Mac's pills with the Claude Code label for Windows a
     // Windows' Music pill (music.rs) on the Mac's Apple Music id.
     ["integration_music", "Music", "#FA2D48", "service", "Integration"],
     ["integration_spotify", "Spotify", "#1DB954", "service", "Integration"],
+    ["integration_mail", "Mail", "#2F8CFF", "service", "Integration"],
     ["integration_whatsapp", "WhatsApp", "#25D366", "service", "Integration"],
   ];
   assert.deepEqual(
@@ -95,7 +96,7 @@ test("IDs are unique", () => {
   assert.equal(new Set(ids).size, ids.length);
 });
 
-test("this build leaves out what only macOS has, Claude Desktop and Music on Linux", () => {
+test("this build leaves out what only macOS has, Mail and Music on Linux", () => {
   const windows = availablePills("windows").map((p) => p.id);
   const linux = availablePills("linux").map((p) => p.id);
   // The Music pill reads the Windows media controls: Windows only.
@@ -108,11 +109,14 @@ test("this build leaves out what only macOS has, Claude Desktop and Music on Lin
     assert.ok(linux.includes(id), id);
   }
   assert.ok(windows.includes("agent_claude-desktop"));
-  assert.ok(!linux.includes("agent_claude-desktop"));
+  assert.ok(linux.includes("agent_claude-desktop"));
+  // Mail is Outlook's, and Outlook is a Windows program.
+  assert.ok(windows.includes("integration_mail"));
+  assert.ok(!linux.includes("integration_mail"));
   // Spotify: MPRIS on Linux, the system media controls on Windows.
   assert.ok(linux.includes("integration_spotify"));
   assert.ok(windows.includes("integration_spotify"));
-  assert.deepEqual(linux, windows.filter((id) => id !== "agent_claude-desktop" && id !== "integration_music"));
+  assert.deepEqual(linux, windows.filter((id) => id !== "integration_mail" && id !== "integration_music"));
 });
 
 test("Spotify: a service on both systems with nothing to set up", () => {
@@ -126,15 +130,15 @@ test("Spotify: a service on both systems with nothing to set up", () => {
   assert.ok(!mainPillChoices("windows").some((p) => p.id === "integration_spotify"));
 });
 
-test("Spotify can be declared on both systems; Claude Desktop only on Windows", () => {
+test("Spotify and Claude Desktop can be declared on both systems", () => {
   const d = { mainPill: "integration_claude", activeIntegrations: ["integration_spotify", "integration_n8n"] };
   assert.deepEqual(sanitizeDeclared(d, "linux").activeIntegrations, ["integration_spotify", "integration_n8n"]);
   assert.deepEqual(sanitizeDeclared(d, "windows").activeIntegrations, ["integration_spotify", "integration_n8n"]);
   const empty = { mainPill: "integration_claude", activeIntegrations: [] };
   assert.deepEqual(toggleDeclared(empty, "integration_spotify", "linux"), ["integration_spotify"]);
   assert.deepEqual(toggleDeclared(empty, "integration_spotify", "windows"), ["integration_spotify"]);
-  // Claude Desktop stays Windows only.
-  assert.equal(toggleDeclared(empty, "agent_claude-desktop", "linux"), null);
+  // Claude Desktop is available on both Linux and Windows.
+  assert.deepEqual(toggleDeclared(empty, "agent_claude-desktop", "linux"), ["agent_claude-desktop"]);
   assert.deepEqual(toggleDeclared(empty, "agent_claude-desktop", "windows"), ["agent_claude-desktop"]);
 });
 
@@ -150,7 +154,7 @@ test("no chat provider that works here says Coming soon", () => {
 
 test("the main pill is a workspace tool that works here", () => {
   assert.deepEqual(mainPillChoices("linux").map((p) => p.id), [
-    "integration_claude", "agent_cursor", "agent_antigravity", "agent_codex",
+    "integration_claude", "agent_cursor", "agent_antigravity", "agent_codex", "agent_claude-desktop",
   ]);
   assert.equal(DEFAULT_MAIN_PILL, "integration_claude");
 });
@@ -159,10 +163,9 @@ test("Claude Desktop can be the main pill where the Claude app exists", () => {
   assert.deepEqual(mainPillChoices("windows").map((p) => p.id), [
     "integration_claude", "agent_cursor", "agent_antigravity", "agent_codex", "agent_claude-desktop",
   ]);
-  assert.ok(!mainPillChoices("linux").some((p) => p.id === "agent_claude-desktop"));
   const d = sanitizeDeclared({ mainPill: "agent_claude-desktop", activeIntegrations: ["agent_claude-desktop", "agent_cursor"] }, "windows");
   assert.deepEqual(d, { mainPill: "agent_claude-desktop", activeIntegrations: ["agent_cursor"] });
-  assert.equal(sanitizeDeclared({ mainPill: "agent_claude-desktop", activeIntegrations: [] }, "linux").mainPill, "integration_claude");
+  assert.equal(sanitizeDeclared({ mainPill: "agent_claude-desktop", activeIntegrations: [] }, "linux").mainPill, "agent_claude-desktop");
 });
 
 test("hook-driven pills are the workspace tools and the agents with hooks", () => {
@@ -213,7 +216,7 @@ test("up to four pills next to the main one, never the main one itself", () => {
   assert.equal(toggleDeclared({ ...d, activeIntegrations: four }, "ai_anthropic", "linux"), null);
   assert.equal(toggleDeclared(d, "integration_claude", "linux"), null);
   assert.equal(toggleDeclared(d, "integration_music", "linux"), null);
-  assert.equal(toggleDeclared(d, "agent_claude-desktop", "linux"), null);
+  assert.ok(toggleDeclared(d, "agent_claude-desktop", "linux").includes("agent_claude-desktop"));
   assert.ok(toggleDeclared(d, "agent_claude-desktop", "windows").includes("agent_claude-desktop"));
   assert.deepEqual(toggleDeclared(d, "integration_github", "linux"), ["integration_n8n", "integration_stripe"]);
   // Every chat provider can be declared now that the chat talks to it.

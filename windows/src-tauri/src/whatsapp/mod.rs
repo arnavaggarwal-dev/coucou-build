@@ -886,11 +886,16 @@ fn name_groups(provider: Arc<Provider>, gen: u64, groups: Vec<String>) {
     }
     spawn(async move {
         for chat in groups {
-            let Some(name) = provider.group_name(&chat).await else { continue };
+            let name = provider.group_name(&chat).await;
             let mut c = ctl();
             if c.generation != gen {
                 return;
             }
+            // Asked again with the next message when the gateway didn't answer.
+            let Some(name) = name else {
+                c.naming.remove(&chat);
+                continue;
+            };
             c.inbox.rename(&chat, &name);
             drop(c);
             changed();
@@ -976,32 +981,40 @@ async fn chats() -> Vec<ChatSummary> {
     let mut list: Vec<ChatSummary> = list
         .into_iter()
         .map(|c| (model::normalized(&c.id), c))
-        .filter(|(id, _)| is_chat(id) && !ignored.contains(id))
+        .filter(|(id, _)| model::is_conversation(id) && !ignored.contains(id))
         .map(|(id, c)| ChatSummary { is_group: model::is_group(&id), id, name: c.name, last_activity: c.last, archived: c.archived })
         .collect();
-    // Groups listed without a name (GOWA's /chats gives none, or the number): the inbox's name,
-    // the one found last time, else the gateway's group info, asked once per group as the inbox does.
-    let mut renamed = false;
-    for chat in list.iter_mut().filter(|s| s.is_group && model::unnamed(&s.id, &s.name)) {
-        let (found, ask) = {
-            let mut c = ctl();
-            let found = c
-                .inbox
-                .conversations
-                .get(&chat.id)
-                .map(|conv| conv.name.clone())
-                .or_else(|| c.known.get(&chat.id).cloned())
-                .filter(|n| !model::unnamed(&chat.id, n));
-            let ask = found.is_none() && c.naming.insert(chat.id.clone());
-            (found, ask)
-        };
-        let name = match found {
-            Some(name) => Some(name),
-            None if ask => provider.group_name(&chat.id).await,
-            None => None,
-        };
-        let Some(name) = name else { continue };
+    // Groups listed without a name (GOWA's /chats gives none, the number or "Group <id>"): the
+    // inbox's name, the one found last time, else the gateway's group info, all asked at once (a
+    // second each) and once per group as the inbox does; a lookup that failed is asked again later.
+    let mut lookups = Vec::new();
+    for (i, chat) in list.iter_mut().enumerate().filter(|(_, s)| s.is_group && model::unnamed(&s.id, &s.name)) {
         let mut c = ctl();
+        let found = c
+            .inbox
+            .conversations
+            .get(&chat.id)
+            .map(|conv| conv.name.clone())
+            .or_else(|| c.known.get(&chat.id).cloned())
+            .filter(|n| !model::unnamed(&chat.id, n));
+        match found {
+            Some(name) => chat.name = name,
+            None if c.naming.insert(chat.id.clone()) => {
+                let (provider, id) = (provider.clone(), chat.id.clone());
+                lookups.push((i, tauri::async_runtime::spawn(async move { provider.group_name(&id).await })));
+            }
+            None => {}
+        }
+    }
+    let mut renamed = false;
+    for (i, lookup) in lookups {
+        let name = lookup.await.ok().flatten();
+        let mut c = ctl();
+        let chat = &mut list[i];
+        let Some(name) = name else {
+            c.naming.remove(&chat.id);
+            continue;
+        };
         // The conversation's header too, when the inbox only had the number.
         if c.inbox.conversations.get(&chat.id).is_some_and(|conv| model::unnamed(&chat.id, &conv.name)) {
             c.inbox.rename(&chat.id, &name);
@@ -1114,17 +1127,12 @@ async fn send_media(chat: &str, name: &str, bytes: Vec<u8>, caption: &str) -> bo
 /// clicked to send it.
 async fn forward(from: &str, id: &str, to: &str) -> bool {
     let (from, to) = (model::normalized(from), model::normalized(to));
-    if !is_chat(&to) {
+    if !model::is_conversation(&to) {
         return false;
     }
     let Some((provider, gen, _)) = start_sending(&to) else { return false };
     let result = provider.forward(&from, id, &to).await;
     finish_sending(gen, result, None)
-}
-
-/// A person or a group: not the status broadcast, a channel or a broadcast list.
-fn is_chat(id: &str) -> bool {
-    id.ends_with("@s.whatsapp.net") || id.ends_with("@g.us") || id.ends_with("@lid")
 }
 
 /// A page of one chat's history for the big WhatsApp chat: handed to the page as it is, kept
@@ -1579,8 +1587,6 @@ mod tests {
         assert_eq!(c.island_view().unread, 0, "nor does it count");
         c.prefs.ignored = vec!["120363@g.us".into()];
         assert!(c.island_view().conversations.is_empty(), "ignored stays ignored");
-        assert!(is_chat("336@s.whatsapp.net") && is_chat("120363@g.us") && is_chat("251556@lid"));
-        assert!(!is_chat("status@broadcast") && !is_chat("1203@newsletter"));
     }
 
     #[test]

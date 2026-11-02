@@ -49,7 +49,7 @@ export function updateRows(toggle: Toggle, version: string): HTMLElement[] {
           : "";
     footer.textContent = status.platform === "linux"
       ? t("Coucou looks at its own releases on GitHub a few times a day and tells you when one is out. Update it the way you installed it: AppImage, .deb, .rpm or your package manager.")
-      : t("Coucou looks at its own releases on GitHub a few times a day. An update is installed only after your click, once its SHA-256 matches the one GitHub publishes.");
+      : t("Mochi checks Coucou's releases on GitHub a few times a day and tells you when one is out. Nothing about you is sent.");
     current.textContent = t("You have {version}", { version: status.current || version });
   }
 

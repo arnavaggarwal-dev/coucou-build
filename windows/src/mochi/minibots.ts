@@ -134,6 +134,12 @@ export function tickMiniBots(dt: number) {
     const { size, side, width, height } = mb.layout;
     mb.engine.setDancing(mb.dancing?.() ?? (music && !asleep && dancesIn(mb.engine.state)));
     mb.engine.update(dt);
+    // Sized at creation: the island may have moved to a monitor of another scale.
+    const px = Math.round(width * dpr);
+    if (mb.canvas.width !== px) {
+      mb.canvas.width = px;
+      mb.canvas.height = Math.round(height * dpr);
+    }
     ctx.setTransform(dpr, 0, 0, dpr, side * dpr, 0);
     ctx.clearRect(-side, 0, width, height);
     ctx.save();

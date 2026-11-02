@@ -81,7 +81,7 @@ function look(): Look {
   }
 }
 
-const vertical = () => state.edge !== "bottom";
+const vertical = () => state.edge === "left" || state.edge === "right";
 
 function messageText(): string | null {
   switch (state.phase) {
@@ -247,6 +247,13 @@ let capsule: HTMLElement | null = null;
 let lastKey = "";
 
 function render() {
+  if (!visible) {
+    root.style.display = "none";
+    root.replaceChildren();
+    void FlowBridge.pillHot([]);
+    return;
+  }
+  root.style.display = "flex";
   const l = look();
   const open = l !== "resting";
   const length = open ? openLength(l) : RESTING_LENGTH;
@@ -289,6 +296,10 @@ function render() {
 }
 
 function reportHot() {
+  if (!visible) {
+    void FlowBridge.pillHot([]);
+    return;
+  }
   const rects: [number, number, number, number][] = [];
   const W = window.innerWidth;
   const H = window.innerHeight;
@@ -298,6 +309,14 @@ function reportHot() {
     const w = open ? 200 : 96;
     const h = open ? 46 : 26;
     rects.push([(W - w) / 2, H - h, w, h]);
+  } else if (state.edge === "bottom-left") {
+    const w = open ? 200 : 96;
+    const h = open ? 46 : 26;
+    rects.push([0, H - h, w, h]);
+  } else if (state.edge === "bottom-right") {
+    const w = open ? 200 : 96;
+    const h = open ? 46 : 26;
+    rects.push([W - w, H - h, w, h]);
   } else {
     const w = open ? 46 : 26;
     const h = open ? 200 : 96;
@@ -505,10 +524,11 @@ async function main() {
   const status = await FlowBridge.status();
   if (status) platform = status.platform;
   state = (await FlowBridge.pillState()) ?? state;
-  visible = state.enabled || state.noteStartedAt !== null || state.announcement !== null || state.voice !== null;
+  visible = state.enabled || state.noteStartedAt !== null || state.announcement !== null || state.voice !== null || state.phase !== "idle";
   render();
   void onEvent<PillState>("pill-state", (s) => {
     state = s;
+    visible = s.enabled || s.noteStartedAt !== null || s.announcement !== null || s.voice !== null || s.phase !== "idle";
     if (s.phase === "listening") target.fill(0);
     render();
   });

@@ -30,9 +30,9 @@ use crate::i18n::t;
 use crate::island::WINDOW_LABEL;
 
 /// Fork: this copy comes from the user's own cloud build, so it must never
-/// replace itself with an official release. No look at GitHub (not at launch,
-/// not every 6 hours, not on "Check now"), no card, no download, no installer.
-/// "What's new" still works: it reads only the running version.
+/// replace itself with an official release. It looks at GitHub and says when
+/// one is out, without the question first; `this_install` is Manual, so the only
+/// way forward is the release page: no download, no installer.
 pub const FORK_BUILD: bool = true;
 
 pub const RELEASES_URL: &str = "https://api.github.com/repos/Louis-CFM/coucou/releases?per_page=30";
@@ -397,6 +397,9 @@ fn save_prefs(prefs: &Prefs) {
 
 /// How this copy was installed, for "Update now".
 pub fn this_install() -> InstallKind {
+    if FORK_BUILD {
+        return InstallKind::Manual;
+    }
     #[cfg(windows)]
     {
         let Ok(exe) = std::env::current_exe() else { return InstallKind::Manual };
@@ -462,7 +465,7 @@ fn set_phase(app: &AppHandle, phase: Phase) {
 pub fn start(app: AppHandle) {
     remove_old_downloads();
     if FORK_BUILD {
-        return;
+        state().prefs.consent.get_or_insert(true);
     }
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(FIRST_TICK).await;
@@ -546,9 +549,6 @@ async fn fetch_latest() -> Result<Option<Release>, String> {
 /// One look at GitHub. `manual`: "Check now" in Settings, which opens the card
 /// when a new version is out.
 pub async fn check(app: &AppHandle, manual: bool) {
-    if FORK_BUILD {
-        return;
-    }
     {
         let mut s = state();
         if s.busy() || s.check == CheckState::Checking {

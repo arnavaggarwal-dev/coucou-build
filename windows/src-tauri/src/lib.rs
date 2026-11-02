@@ -6,6 +6,7 @@ mod agents;
 mod chat;
 mod claude;
 mod claude_code;
+mod cli_relay;
 mod codex_plan;
 mod config_file;
 mod desktop;
@@ -19,6 +20,7 @@ mod integrations;
 mod island;
 mod local_chat;
 mod log;
+mod mail;
 mod media;
 mod music;
 mod net;
@@ -99,7 +101,7 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
 
 #[tauri::command]
 fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
-    let (screen_changed, autostart_changed, shortcuts_changed) = {
+    let (settings, screen_changed, autostart_changed, shortcuts_changed) = {
         let mut current = shared.settings.lock().unwrap();
         let screen_changed = current.screen != settings.screen;
         let autostart_changed = current.autostart != settings.autostart;
@@ -124,9 +126,8 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
             settings.mochi_looks = current.mochi_looks.clone();
         }
         *current = settings;
-        (screen_changed, autostart_changed, shortcuts_changed)
+        (current.clone(), screen_changed, autostart_changed, shortcuts_changed)
     };
-    let settings = shared.settings.lock().unwrap().clone();
     if let Err(err) = settings::save(&settings) {
         log::line(format!("could not save settings: {err}"));
     }
@@ -349,8 +350,8 @@ fn open_session(session_id: Option<String>, path: Option<String>) -> bool {
     }
 }
 
-/// The Claude Desktop pill's target: the Claude app (Windows only — it has no
-/// Linux build).
+/// The Claude Desktop pill's target: the Claude app (Windows, and Linux with
+/// Anthropic's .deb).
 #[tauri::command]
 fn open_claude_desktop() -> bool {
     platform::open_claude_desktop()
@@ -485,6 +486,7 @@ fn status_line_apply(
         // As on the Mac: taking the relay out turns the pill off with it.
         if !install {
             current.show_plan_in_notch = false;
+            current.show_plan_in_compact_island = false;
         }
         if let Err(err) = settings::save(&current) {
             log::line(format!("could not save settings: {err}"));
@@ -547,10 +549,17 @@ async fn chat_send(
     chat: State<'_, Chat>,
     query: String,
     context: Option<ChatContext>,
+    mail: Option<bool>,
     text_only: Option<bool>,
 ) -> Result<ChatReply, String> {
     let settings = shared.settings.lock().unwrap().clone();
+    // The chat's Mail switch: the latest Outlook messages ride under the request, and the
+    // system prompt says how to write a plan (mail/plan.rs) that runs only after a click.
+    let with_mail = mail == Some(true);
+    let query = if with_mail { mail::decorate(&query).await } else { query };
+    mail::MAIL_TURN.store(with_mail, std::sync::atomic::Ordering::Relaxed);
     let result = chat::send(&app, &chat, &settings, query, context, text_only.unwrap_or(false)).await;
+    mail::MAIL_TURN.store(false, std::sync::atomic::Ordering::Relaxed);
     // A model that refused a picture reads text only: remembered, so the island
     // asks first next time instead of spending a request.
     if matches!(&result, Err(e) if e == chat::IMAGES_UNSUPPORTED) {
@@ -635,6 +644,12 @@ async fn chat_models(shared: State<'_, Shared>, provider: String) -> Result<Vec<
     chat::models(&settings, &provider).await
 }
 
+/// The Claude API settings use their own key even when chat uses a CLI plan.
+#[tauri::command]
+async fn claude_api_models() -> Result<Vec<ModelInfo>, String> {
+    claude::available_models().await
+}
+
 /// Settings → Local models → Connect: does the server answer, and with which models?
 #[tauri::command]
 async fn local_connect(provider: String, url: String) -> Result<local_chat::Connected, String> {
@@ -646,12 +661,6 @@ async fn local_connect(provider: String, url: String) -> Result<local_chat::Conn
 #[tauri::command]
 fn local_set_key(url: String, key: String) -> Result<(), String> {
     local_chat::set_custom_key(&url, &key)
-}
-
-/// Settings → Chat providers: is the Claude Code CLI on this computer?
-#[tauri::command]
-fn claude_code_found() -> bool {
-    claude_code::find().is_some()
 }
 
 #[tauri::command]
@@ -669,6 +678,36 @@ fn ingest_file(path: String) -> Result<DroppedFile, String> {
 #[tauri::command]
 fn secret_present(key: String) -> bool {
     secrets::present(&key)
+}
+
+/// Whether Claude can answer: an API key, or else the user's own Claude Code.
+#[tauri::command]
+fn claude_ready() -> bool {
+    claude::ready()
+}
+
+/// Settings → Chat → Your AI subscriptions: each provider's switch and
+/// whether its terminal tool is installed (looked up again on every call).
+#[tauri::command]
+fn subscription_status(shared: State<Shared>) -> Vec<cli_relay::Status> {
+    let settings = shared.settings.lock().unwrap().clone();
+    cli_relay::status(&settings)
+}
+
+/// A switch under "Your AI subscriptions" moved: saved, and both windows told.
+#[tauri::command]
+fn subscription_set(app: AppHandle, shared: State<Shared>, provider: String, on: bool) -> Vec<cli_relay::Status> {
+    let settings = {
+        let mut current = shared.settings.lock().unwrap();
+        cli_relay::set(&mut current, &provider, on);
+        current.clone()
+    };
+    if let Err(err) = settings::save(&settings) {
+        log::line(format!("could not save settings: {err}"));
+    }
+    let status = cli_relay::status(&settings);
+    let _ = app.emit("settings-changed", settings);
+    status
 }
 
 #[tauri::command]
@@ -858,7 +897,18 @@ pub fn show_settings_window(app: &AppHandle) {
 /// "settings", "general", "shortcuts"…).
 pub fn show_hub(app: &AppHandle, page: Option<&str>) {
     let Some(win) = app.get_webview_window(HUB_LABEL) else {
-        log::line("Coucou window missing");
+        // Creating it at startup can fail on some machines (WebView2
+        // 0x80070578, #775): try again now, on the main thread, where
+        // window creation can't deadlock a command.
+        log::line("Coucou window missing, creating it again");
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            create_settings_window(&handle);
+            if let Some(win) = handle.get_webview_window(HUB_LABEL) {
+                let _ = win.show();
+                let _ = win.set_focus();
+            }
+        });
         return;
     };
     platform::set_memory_low(&win, false);
@@ -902,6 +952,8 @@ pub fn run() {
     let mut dirty = settings::load_looks(&mut loaded);
     // The previous fork's own wardrobe moves to upstream's, once.
     dirty |= settings::migrate_wardrobe(&mut loaded);
+    // The previous fork's Claude Code provider is Claude's subscription switch now.
+    dirty |= settings::migrate_claude_code(&mut loaded);
     // The previous fork's chat models move to upstream's providers, once.
     if loaded.models.iter().any(settings::ModelEntry::is_text) {
         dirty = true;
@@ -948,6 +1000,20 @@ pub fn run() {
         .manage(recap::load())
         .invoke_handler(tauri::generate_handler![
             boot,
+            mail::mail_refresh,
+            mail::mail_more,
+            mail::mail_search,
+            mail::mail_detail,
+            mail::mail_open,
+            mail::mail_act,
+            mail::mail_triage,
+            mail::mail_triage_set,
+            mail::mail_journal_clear,
+            mail::mail_undo,
+            mail::mail_plan_show,
+            mail::mail_plan_test,
+            mail::mail_plan_start,
+            mail::mail_plan_cancel,
             save_settings,
             set_system_languages,
             set_collapsed,
@@ -983,15 +1049,18 @@ pub fn run() {
             log_line,
             chat_send,
             chat_models,
+            claude_api_models,
             local_connect,
             local_set_key,
             chat_reset,
-            claude_code_found,
             read_attachment,
             transcribe_audio,
             endpoint_key,
             ingest_file,
             secret_present,
+            claude_ready,
+            subscription_status,
+            subscription_set,
             secret_set,
             secret_clear,
             refresh_integration,
@@ -1174,6 +1243,7 @@ pub fn run() {
             pipe::start(handle.clone());
             phone_link::start_if_enabled(&handle);
             integrations::start(handle.clone());
+            mail::start(handle.clone());
             spotify::sync(&handle, &loaded.active_integrations);
             // WhatsApp (experimental): nothing runs unless it is turned on and its pill is active.
             whatsapp::start(&handle, &loaded.active_integrations);
@@ -1181,7 +1251,7 @@ pub fn run() {
             // Fork: sound, a call or the camera keeps the Mochis awake.
             awake::start(handle.clone());
             shortcuts::apply(&handle, &loaded.shortcuts);
-            // New versions: off in this fork build, nothing goes to GitHub (update.rs FORK_BUILD).
+            // New versions: told, never installed, in this fork build (update.rs FORK_BUILD).
             update::start(handle.clone());
             if loaded.autostart {
                 // Login items written before 0.5 start Coucou without --autostart:
