@@ -10,12 +10,13 @@ import { buildFileDiff, fileName, makeDiffStep, toOneLine } from "../core/diff";
 import { Sound } from "../core/sound";
 import { State, type ApprovalInfo, type AskedQuestion } from "../core/state";
 import { pillDefinition } from "../core/pills";
-import { APPROVAL_AGENTS, agentColor, agentName, validateAgent } from "./agents";
+import { agentColor, agentName, takesCard, validateAgent } from "./agents";
 import type { Island } from "./island";
 import { gitPushCommand, pushEnded, pushStarted } from "./integrations";
 import { parseClaudePlan, restorePlanUsage } from "../core/plan";
 import { setClaudePlanUsage, storedClaudePlanUsage } from "../views/usage";
 import { N_, t } from "../i18n/i18n";
+import { Launch } from "../core/launch";
 
 const CLAUDE_ID = "integration_claude";
 const CURSOR_ID = "agent_cursor";
@@ -224,6 +225,8 @@ interface HookPayload {
   coucou_diff_truncated?: boolean;
   /** Optional agent tag: lowercase, digits and hyphens, ≤ 24 chars. */
   coucou_agent?: string;
+  /** "agy_pre_tool": an Antigravity command Coucou may show on the card (agents.ts). */
+  coucou_kind?: string;
   /** Hermes: where the session runs (telegram, discord…; "cli" in a terminal). */
   platform?: string;
   /** "cursor" when Claude Code runs in Cursor's terminal (set by the relay). */
@@ -498,6 +501,9 @@ function handleHook(island: Island, payload: HookPayload) {
   // back to the pill you were on.
   const focused = State.focusId === agentId;
 
+  // Each Claude Code session teaches the launch card a project (Mac: SessionLauncher.remember).
+  if ((name === "SessionStart" || name === "UserPromptSubmit") && !payload.coucou_agent && cwd) Launch.remember(cwd);
+
   switch (name) {
     case "SessionStart":
       ensurePill();
@@ -518,6 +524,8 @@ function handleHook(island: Island, payload: HookPayload) {
       // The field is `prompt`; reading `message` meant this step was always blank.
       const asked = promptStep(payload.prompt ?? payload.message ?? "");
       if (asked) State.appendStep(agentId, asked);
+      // A new turn: the finished card would show the prompt as if it were the answer.
+      if (State.mode === "expanded" && State.view === "finished" && State.focusId === agentId) island.setView("overview");
       surface("overview", false);
       break;
     }
@@ -659,9 +667,10 @@ function handleHook(island: Island, payload: HookPayload) {
 
     case "PermissionRequest": {
       // Only Claude Code and the agents the relay can answer for (Codex, Copilot
-      // CLI, Muse Code — same as the Mac) get a card. Anyone else's request is
-      // declined at once, so the agent asks in its own terminal.
-      if (isExternalAgent && !APPROVAL_AGENTS.has(validAgent!)) {
+      // CLI, Muse Code, and Antigravity's commands when that is turned on — same
+      // as the Mac) get a card. Anyone else's request is declined at once, so the
+      // agent asks in its own terminal.
+      if (isExternalAgent && !takesCard(validAgent, payload.coucou_kind)) {
         if (payload.request_id) void Bridge.approvalDecline(payload.request_id);
         break;
       }

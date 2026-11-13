@@ -6,10 +6,10 @@
 import { h, clear } from "../views/dom";
 import { t } from "../i18n/i18n";
 import { Bridge } from "../core/bridge";
-import { FlowBridge, type Edge, type FlowKey, type VoiceOutput } from "../core/flow";
+import { FlowBridge, flowKeyId, type Edge, type FlowKey, type VoiceOutput } from "../core/flow";
 import type { HubContext } from "../hub/shell";
 import { keyKeycap, keycap } from "../hub/ui";
-import { modelsControl } from "../hub/pages/flowsettings";
+import { modelsControl, shortcutRecorder } from "../hub/pages/flowsettings";
 import { pageSave } from "../hub/save";
 import { card, item, segmented, toggle } from "./parts";
 
@@ -44,7 +44,11 @@ export function flowCards(ctx: HubContext): HTMLElement[] {
     ["right_ctrl", t("Right {0}", { 0: "Ctrl" })],
     ["right_alt", t("Right {0}", { 0: "Alt" })],
     ["right_shift", t("Right {0}", { 0: "Shift" })],
+    ["left_ctrl", t("Left {0}", { 0: "Ctrl" })],
+    ["left_alt", t("Left {0}", { 0: "Alt" })],
+    ["left_shift", t("Left {0}", { 0: "Shift" })],
     ["left_ctrl_super", status.platform === "windows" ? "Ctrl + Win" : "Ctrl + Super"],
+    ["custom", t("A shortcut of your own…")],
   ];
   const edges: [Edge, string][] = [["bottom", t("Bottom")], ["bottom-left", t("Bottom-left")], ["bottom-right", t("Bottom-right")], ["left", t("Left")], ["right", t("Right")]];
   const wayland = status.keys === "wayland";
@@ -55,8 +59,22 @@ export function flowCards(ctx: HubContext): HTMLElement[] {
       ? item(t("Hold to dictate"), null, keyKeycap("wayland", status.platform))
       : item(t("Hold to dictate"), prefs.key === "right_alt" ? t("On a keyboard with AltGr, the right Alt types characters: pick another key.") : null,
         select(keys, prefs.key, (key) => void ctx.setPrefs((p) => (p.key = key)).then(() => ctx.navigate("flowsettings")))),
+    // A shortcut of one's own: its keys, and the button that records new ones.
+    prefs.key === "custom" && !wayland
+      ? item(t("Your shortcut"), t("Hold the keys together to dictate. Its letter no longer reaches the app in front while you hold them."),
+        shortcutRecorder(prefs.keyCombo, status.platform, (combo) => void ctx.setPrefs((p) => {
+          p.key = "custom";
+          p.keyCombo = combo;
+        }).then(() => ctx.navigate("flowsettings"))))
+      : null,
     item(t("Where the pill is"), null, select(edges, prefs.edge, (edge) => void ctx.setPrefs((p) => (p.edge = edge)))),
-    item(t("Hands-free"), t("Tap twice, speak as long as you like, tap once to paste."), keyKeycap(wayland ? "wayland" : prefs.key, status.platform, true)),
+    item(t("Hide the pill until I dictate"), t("It shows only while you dictate, record a call or get a message. The dictation key still works."),
+      toggle(prefs.hidePill, (on) => void ctx.setPrefs((p) => (p.hidePill = on)))),
+    item(t("Hands-free"),
+      prefs.oneTapHandsFree ? t("Tap once, speak as long as you like, tap again to paste.") : t("Tap twice, speak as long as you like, tap once to paste."),
+      keyKeycap(wayland ? "wayland" : flowKeyId(prefs), status.platform, !prefs.oneTapHandsFree)),
+    item(t("Hands-free with one press"), null,
+      toggle(prefs.oneTapHandsFree, (on) => void ctx.setPrefs((p) => (p.oneTapHandsFree = on)).then(() => ctx.navigate("flowsettings")))),
     item(t("Live transcription"), t("Words appear in the pill as you speak, and the paste comes faster when you let go. Uses more of the processor while you talk."),
       toggle(prefs.stream, (on) => void ctx.setPrefs((p) => (p.stream = on)))),
     item(t("Paste the last dictation again"), t("When the words went to the wrong place."), button(t("Paste again"), () => void FlowBridge.pasteAgain())),
@@ -103,7 +121,13 @@ export function flowCards(ctx: HubContext): HTMLElement[] {
   return [
     keysCard,
     card(t("Microphone"), null,
-      item(t("Microphone"), t("The one Coucou listens to for dictation and calls."), select(mics, prefs.mic, (mic) => void ctx.setPrefs((p) => (p.mic = mic))))),
+      item(t("Microphone"), t("The one Coucou listens to for dictation and calls."), select(mics, prefs.mic, (mic) => void ctx.setPrefs((p) => (p.mic = mic)))),
+      // Silence while you speak (flow/hush.rs): Windows mutes each app on its own.
+      status.platform === "windows"
+        ? item(t("Mute the computer while you speak"),
+          t("Videos, music and calls go quiet while Coucou listens to you, then come back. Coucou's own sounds keep playing."),
+          toggle(prefs.muteOthers, (on) => void ctx.setPrefs((p) => (p.muteOthers = on))))
+        : null),
     card(t("Notetaker"), null,
       item(t("Summaries"), t("With Claude, the transcript (never the audio) goes to Anthropic with your key from Notch → Chat."),
         select([["claude", t("Claude (your key)")], ["off", t("No summary")]], prefs.summaryEngine, (engine) => void ctx.setPrefs((p) => (p.summaryEngine = engine)))),

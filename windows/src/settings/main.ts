@@ -11,6 +11,7 @@ import {
   recordPress, type Binding,
 } from "../core/shortcuts";
 import { DEFAULT_MOCHI_NAMES, DEFAULT_SETTINGS, type Settings } from "../core/state";
+import { closedIsland } from "../core/closed";
 import { SOUND_NAMES } from "../core/sound";
 import {
   MAX_DECLARED, PILL_CATEGORIES, availablePills, chooseMainPill, isComingSoon, mainPillChoices,
@@ -1050,6 +1051,18 @@ function whatsappSections(): HTMLElement[] {
 
 // ── General section ───────────────────────────────────────────────────────────
 
+/**
+ * Puts the General fields back in line with the settings after a change made
+ * elsewhere (the island's own settings change sound, volume and auto-close).
+ */
+let generalSync: (() => void) | null = null;
+
+/** Shows a switch made by toggle() as on or off, without calling its onChange. */
+function setSwitch(el: HTMLElement, on: boolean) {
+  el.classList.toggle("on", on);
+  el.setAttribute("aria-checked", String(on));
+}
+
 function generalSection() {
   const volume = h("input", {
     type: "range", min: "0", max: "0.2", step: "0.005",
@@ -1085,6 +1098,23 @@ function generalSection() {
     void save();
   });
 
+  // The closed island (core/closed.ts): what stays at the top of the screen.
+  const closed = h("select", {}) as HTMLSelectElement;
+  closed.append(
+    h("option", { value: "mochi", text: t("Mochi, as on a Mac without a notch") }),
+    h("option", { value: "time", text: t("The time") }),
+    h("option", { value: "datetime", text: t("The date and the time") }),
+    h("option", { value: "claude", text: t("Claude usage") }),
+    h("option", { value: "music", text: t("What's playing") }),
+    h("option", { value: "empty", text: t("Nothing, just the island") }),
+    h("option", { value: "hidden", text: t("Hide the island") }),
+  );
+  closed.value = closedIsland(settings.closedIsland);
+  closed.addEventListener("change", () => {
+    settings.closedIsland = closed.value;
+    void save();
+  });
+
   const screen = h("select", {}) as HTMLSelectElement;
   screen.append(
     h("option", { value: "primary", text: t("Main display") }),
@@ -1112,15 +1142,32 @@ function generalSection() {
   });
 
   const sw = (on: boolean, set: (v: boolean) => void) => toggle(on, (v) => { set(v); void save(); });
+  // Kept, so a change made from the island shows here too (generalSync).
+  const sound = sw(settings.soundEnabled, (v) => (settings.soundEnabled = v));
+  const openOnHover = sw(settings.openOnHover, (v) => (settings.openOnHover = v));
+  const autostart = sw(settings.autostart, (v) => (settings.autostart = v));
+  generalSync = () => {
+    setSwitch(sound, settings.soundEnabled);
+    setSwitch(openOnHover, settings.openOnHover);
+    setSwitch(autostart, settings.autostart);
+    // A field being edited keeps what is in it; it catches up when it is left.
+    if (document.activeElement !== volume) volume.value = String(settings.soundVolume);
+    if (document.activeElement !== autoClose) {
+      autoClose.value = String(Math.round(settings.autoCloseInterval));
+    }
+  };
+  volume.addEventListener("blur", () => generalSync?.());
+  autoClose.addEventListener("blur", () => generalSync?.());
+
   return {
     general: [
       card("", null,
         item(t("Language"), null, languageSelect()),
-        item(t("Launch at startup"), null, sw(settings.autostart, (v) => (settings.autostart = v))),
+        item(t("Launch at startup"), null, autostart),
         hubCtx ? openAtLaunchItem(hubCtx) : null,
       ),
       card("", null,
-        item(t("Sound"), null, volume, sw(settings.soundEnabled, (v) => (settings.soundEnabled = v))),
+        item(t("Sound"), null, volume, sound),
         // Your own sounds: for the few who make them.
         advanced(
           h("div", { class: "hint", text: t("Drop a file named like one of Mochi's sounds (finish.wav, approval.mp3, greet.m4a…) in the sounds folder to replace it, then Reload.") }),
@@ -1134,12 +1181,13 @@ function generalSection() {
     ],
     island: card(t("Behavior"), null,
       item(t("Open on hover"), t("Hovering the island opens it; it folds again shortly after the pointer leaves. Click inside to keep it open."),
-        sw(settings.openOnHover, (v) => (settings.openOnHover = v))),
+        openOnHover),
       item(t("Open for every pill’s alerts"), t("When a pill other than the one shown finishes or hits an error, the notch shows it for a moment, then the pill you had comes back."),
         sw(settings.alertsFromAllPills, (v) => (settings.alertsFromAllPills = v))),
       item(t("Auto-close"), t("seconds after you leave the island"), autoClose),
       item(t("Show clock in the island"), t("The date and the time in the middle of the island when it is compact."),
         sw(settings.showClock, (v) => (settings.showClock = v))),
+      item(t("Closed island shows"), t("A PC has no notch: once closed, a small island stays at the top of the screen. Hover it to bring Coucou back. Hidden, move the pointer to the very top of the screen."), closed),
       item("Keep island visible", "stays compact at the top instead of hiding",
         sw(settings.keepVisible ?? false, (v) => (settings.keepVisible = v))),
       item(t("Island lives on"), null, screen),
@@ -1471,6 +1519,7 @@ async function main() {
     const before = `${settings.chatProvider}|${settings.ollamaUrl}|${settings.lmstudioUrl}|${settings.customUrl}`;
     settings = { ...settings, ...s };
     shortcutsListener?.settingsChanged();
+    generalSync?.();
     for (const redraw of declaredViews) redraw();
     forkSettingsChanged();
     const after = `${settings.chatProvider}|${settings.ollamaUrl}|${settings.lmstudioUrl}|${settings.customUrl}`;
@@ -1584,6 +1633,7 @@ async function render() {
   declaredViews.length = 0;
   localRedraw = null;
   shortcutsListener = null;
+  generalSync = null;
   const general = generalSection();
   clear(root);
   root.append(layout([

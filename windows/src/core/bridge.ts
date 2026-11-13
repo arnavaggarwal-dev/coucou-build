@@ -56,6 +56,8 @@ export interface PhoneRelayStatus {
   url: string;
   hasAccess: boolean;
   state: PhoneRelayState;
+  /** The relay settings are shown: for testers (COUCOU_RELAY_SETTINGS=1), or when a relay is already on. */
+  shown: boolean;
 }
 
 /** Session details for the phone: the switch (off by default). */
@@ -240,7 +242,9 @@ export const Bridge = {
   saveSettings: (settings: Settings) => call<void>("save_settings", { settings }),
 
   /** Shrink the window down to the invisible wake strip (hidden) or back to full. */
-  setCollapsed: (collapsed: boolean) => call<void>("set_collapsed", { collapsed }),
+  /** Folds the window to `width`×`height` (the closed island) or grows it back to the panel. */
+  setCollapsed: (collapsed: boolean, width?: number, height?: number) =>
+    call<void>("set_collapsed", { collapsed, width: width ?? null, height: height ?? null }),
 
   /**
    * Pushes the island shape in window coordinates. Rust flips click-through from
@@ -287,6 +291,22 @@ export const Bridge = {
   /** The Claude desktop app, for the Claude Desktop pill (Windows only). */
   openClaudeDesktop: () => call<boolean>("open_claude_desktop"),
 
+  /**
+   * A new Claude Code session: the user's terminal in `folder`, running
+   * Claude Code with the prompt (src-tauri/src/launch.rs). False when it couldn't.
+   */
+  launchSession: (folder: string, prompt: string) => call<boolean>("launch_session", { folder, prompt }),
+
+  /** The system's folder picker, `start` open in it; null when cancelled. */
+  pickFolder: (start: string | null) => call<string | null>("pick_folder", { start }),
+
+  /**
+   * A file dropped on a session: its window comes forward and the paths are
+   * pasted into it. "pasted", "copied" (on the clipboard only) or "failed".
+   */
+  dropIntoSession: (sessionId: string, path: string | null, paths: string[]) =>
+    call<"pasted" | "copied" | "failed">("drop_into_session", { sessionId, path, paths }),
+
   /** The diff card's ↗: an existing file, in VS Code; never launched by its type. */
   openFileInVSCode: (path: string) => call<boolean>("open_file_in_vscode", { path }),
 
@@ -321,6 +341,11 @@ export const Bridge = {
    */
   agentHooksApply: (agent: string, install: boolean, fingerprint: string) =>
     callOrThrow<string>("agent_hooks_apply", { agent, install, fingerprint }),
+  /** Settings → Agents → Antigravity → Approve commands from the notch, and whether its hooks can wait. */
+  agyApprovalsStatus: () => call<AgyApprovalsStatus>("agy_approvals_status"),
+  /** Off by default; only from the switch in Settings. */
+  agyApprovalsSetEnabled: (enabled: boolean) =>
+    callOrThrow<AgyApprovalsStatus>("agy_approvals_set_enabled", { enabled }),
   // ── Plan usage: the status line relay, installed apart from the hooks ──────
   /** Diff of the status line change. `install: false` previews taking the relay out. */
   statusLinePreview: (install: boolean) => callOrThrow<HookPreview>("status_line_preview", { install }),
@@ -535,6 +560,8 @@ export const Bridge = {
   /** A conversation opened in the card: its latest messages, the receipt if Settings says so. */
   whatsappOpen: (chat: string) => call<void>("whatsapp_open", { chat }),
   whatsappClose: (chat: string) => call<void>("whatsapp_close", { chat }),
+  /** The card's ↗: WhatsApp Desktop at the open conversation, or WhatsApp Web without it. */
+  whatsappOpenApp: () => call<boolean>("whatsapp_open_app"),
   /** The big WhatsApp chat: the gateway's latest chats, and a page of one chat's history up to
    *  `before` (ms; null for the latest). Null when the gateway didn't answer. */
   whatsappChats: () => call<WaChatSummary[]>("whatsapp_chats"),
@@ -689,6 +716,12 @@ export interface HookStatus {
 }
 
 /** One agent other than Claude Code, as agents.rs reports it. */
+export interface AgyApprovalsStatus {
+  enabled: boolean;
+  /** Coucou's PreToolUse hook can wait for a click (120 s); older hooks (10 s) must be installed again. */
+  hooksReady: boolean;
+}
+
 export interface AgentHookStatus {
   /** The `--agent` name; its pill is `agent_<id>`. */
   id: string;
@@ -734,6 +767,8 @@ export type BridgeEvent =
 export interface DragDropPayload {
   type: "enter" | "over" | "drop" | "leave";
   paths?: string[];
+  /** Where the pointer is, in physical pixels of the webview (Tauri's own drag events, Linux). */
+  position?: { x: number; y: number };
 }
 
 interface WebView2Bridge {

@@ -174,6 +174,8 @@ export interface Settings {
   alertsFromAllPills: boolean;
   /** Date and time in the middle of the compact island. */
   showClock: boolean;
+  /** What the closed island shows at the top of the screen (see core/closed.ts). */
+  closedIsland: string;
   absenceInterval: number;
   /** Declared pills next to the main one (at most 4), in the order they were added. */
   activeIntegrations: string[];
@@ -270,6 +272,7 @@ export const DEFAULT_SETTINGS: Settings = {
   openOnHover: false,
   alertsFromAllPills: false,
   showClock: false,
+  closedIsland: "mochi",
   absenceInterval: 180,
   activeIntegrations: [
     "integration_resend", "integration_n8n", "integration_vercel", "integration_github",
@@ -332,6 +335,8 @@ class AppState {
   uploadProgress = 0;
   uploadDuration = 2.4;
   fileDragOver = false;
+  /** The session pill a dragged file is over on the drop card (Mac dropSessionTarget). */
+  dropSessionTarget: string | null = null;
 
   promptContext: PromptContext | null = null;
   /** The file the next question is about. `ephemeral` = a roam screenshot,

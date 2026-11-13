@@ -8,7 +8,7 @@ use std::process::Command;
 
 use tauri::{AppHandle, Manager, WebviewWindow};
 
-use ::windows::core::{w, BOOL, PWSTR};
+use ::windows::core::{w, BOOL, HSTRING, PCWSTR, PWSTR};
 use ::windows::Win32::Foundation::{
     CloseHandle, HANDLE, HLOCAL, HWND, LPARAM, LocalFree, POINT, RPC_E_CHANGED_MODE,
 };
@@ -22,6 +22,7 @@ use ::windows::Win32::System::Diagnostics::ToolHelp::{
 };
 use ::windows::Win32::System::Ole::RevokeDragDrop;
 use ::windows::Win32::System::Pipes::GetNamedPipeClientProcessId;
+use ::windows::Win32::System::Registry::{RegGetValueW, HKEY_CLASSES_ROOT, RRF_RT_REG_SZ};
 use ::windows::Win32::System::SystemInformation::GetLocalTime;
 use ::windows::Win32::System::Threading::{
     AttachThreadInput, GetCurrentProcess, GetCurrentThreadId, OpenProcessToken,
@@ -121,6 +122,18 @@ pub fn no_console(cmd: &mut Command) -> &mut Command {
 pub fn open_url(url: &str) {
     let _ = no_console(Command::new("rundll32.exe").args(["url.dll,FileProtocolHandler", url]))
         .spawn();
+}
+
+/// Whether an app on this computer registered the URL scheme (`whatsapp`…), so
+/// `open_url` on one of its links reaches that app instead of a "pick an app"
+/// prompt. Every registered scheme carries an empty "URL Protocol" value; a
+/// Microsoft Store app's is written there too, for as long as it is installed.
+pub fn handles_scheme(scheme: &str) -> bool {
+    let key = HSTRING::from(scheme);
+    unsafe {
+        RegGetValueW(HKEY_CLASSES_ROOT, PCWSTR(key.as_ptr()), w!("URL Protocol"), RRF_RT_REG_SZ, None, None, None)
+    }
+    .is_ok()
 }
 
 pub fn reveal_folder(path: &str) {
@@ -659,6 +672,70 @@ fn activate_claude_protocol() -> bool {
         }
         opened
     }
+}
+
+// ── New Claude Code session (launch.rs) ───────────────────────────────────────
+
+/// Windows Terminal's `wt.exe`, when it is installed: on %PATH%, or as the
+/// app execution alias the Store package puts in WindowsApps (a reparse point,
+/// so it is looked at without being followed).
+pub fn windows_terminal() -> Option<PathBuf> {
+    find_on_path("wt").or_else(|| {
+        let alias = PathBuf::from(std::env::var_os("LOCALAPPDATA")?)
+            .join("Microsoft")
+            .join("WindowsApps")
+            .join("wt.exe");
+        std::fs::symlink_metadata(&alias).is_ok().then_some(alias)
+    })
+}
+
+/// "Choose a folder…": the system's folder picker (IFileOpenDialog with
+/// FOS_PICKFOLDERS), over the island, `start` open in it. Runs on a thread of
+/// its own, in a single-threaded apartment as the Shell's dialogs want.
+pub fn pick_folder(app: &AppHandle, start: Option<&str>, title: &str) -> Option<String> {
+    use ::windows::Win32::System::Com::{CoCreateInstance, CoTaskMemFree, CLSCTX_INPROC_SERVER};
+    use ::windows::Win32::UI::Shell::{
+        FileOpenDialog, IFileOpenDialog, IShellItem, SHCreateItemFromParsingName, FOS_FORCEFILESYSTEM,
+        FOS_PICKFOLDERS, SIGDN_FILESYSPATH,
+    };
+
+    let owner = app
+        .get_webview_window(crate::island::WINDOW_LABEL)
+        .and_then(|w| hwnd_of(&w))
+        .map(|h| h.0 as isize);
+    let start = start.map(HSTRING::from);
+    let title = HSTRING::from(title);
+    std::thread::spawn(move || unsafe {
+        let initialized = CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+        if initialized.is_err() && initialized != RPC_E_CHANGED_MODE {
+            return None;
+        }
+        let picked = (|| -> Option<String> {
+            let dialog: IFileOpenDialog = CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER).ok()?;
+            let options = dialog.GetOptions().ok()?;
+            dialog.SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM).ok()?;
+            let _ = dialog.SetTitle(&title);
+            if let Some(start) = &start {
+                if let Ok(folder) = SHCreateItemFromParsingName::<_, _, IShellItem>(start, None) {
+                    let _ = dialog.SetFolder(&folder);
+                }
+            }
+            // Cancelled: an error, and nothing picked.
+            dialog.Show(owner.map(|raw| HWND(raw as *mut _))).ok()?;
+            let item = dialog.GetResult().ok()?;
+            let name = item.GetDisplayName(SIGDN_FILESYSPATH).ok()?;
+            let path = name.to_string().ok();
+            CoTaskMemFree(Some(name.0 as *const _));
+            path
+        })();
+        if initialized.is_ok() {
+            CoUninitialize();
+        }
+        picked
+    })
+    .join()
+    .ok()
+    .flatten()
 }
 
 #[cfg(test)]

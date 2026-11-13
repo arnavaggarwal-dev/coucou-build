@@ -39,6 +39,8 @@ pub struct PillState {
     pub announcement: Option<Announcement>,
     /// Dictation is on (the resting pill shows).
     pub enabled: bool,
+    /// The user chose to hide the resting pill: it shows only while something happens.
+    pub hide_idle: bool,
     /// « OK Coucou » is talking with you.
     pub voice: Option<crate::voice::VoiceView>,
     /// Fork: the words of the dictation transcribed so far (flow/stream.rs).
@@ -248,7 +250,7 @@ pub fn update(app: &AppHandle, change: impl FnOnce(&mut PillState)) {
     let _ = app.emit_to(LABEL, "pill-state", &state);
     // Fork: the glow round the pointer while the microphone records.
     super::glow::set(app, matches!(state.phase.as_str(), "listening" | "locked") || state.note_started_at.is_some());
-    let visible = state.enabled || state.note_started_at.is_some() || state.announcement.is_some() || state.voice.is_some() || state.phase != "idle";
+    let visible = (state.enabled && !state.hide_idle) || state.note_started_at.is_some() || state.announcement.is_some() || state.voice.is_some() || state.phase != "idle";
     let was = pill.shown.swap(visible, Ordering::Relaxed);
     if visible && (!was || edge_changed) {
         place(app, &pill, &state.edge, state.phase == "listening");
@@ -260,6 +262,7 @@ pub fn update(app: &AppHandle, change: impl FnOnce(&mut PillState)) {
 
 fn show(app: &AppHandle, pill: &Pill, visible: bool) {
     let Some(win) = window(app) else { return };
+    crate::webview_memory::set_low(&win, !visible);
     match pill.mode {
         DesktopMode::Poll => {
             if !visible {

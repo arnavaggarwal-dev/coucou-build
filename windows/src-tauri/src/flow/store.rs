@@ -91,7 +91,12 @@ pub struct Prefs {
     /// Hold a key to dictate anywhere. Off until the user turns it on.
     pub enabled: bool,
     pub key: FlowKey,
+    /// The keys of a shortcut of the user's own, when `key` is `Custom`: their
+    /// KeyboardEvent.code names ("AltLeft", "ShiftLeft", "KeyF").
+    pub key_combo: Vec<String>,
     pub edge: Edge,
+    /// Hide the pill while nothing is dictated: it shows only for a dictation, a call being recorded or a message.
+    pub hide_pill: bool,
     /// The microphone by name; empty is the system's default.
     pub mic: String,
     /// Days the history is kept: 0 = not kept, -1 = forever.
@@ -105,10 +110,14 @@ pub struct Prefs {
     pub open_at_launch: bool,
     /// « OK Coucou »: listen for it and answer with Claude (needs the Claude key).
     pub voice: bool,
+    /// The other apps' sound is muted while Coucou listens to you (Windows).
+    pub mute_others: bool,
     /// How Coucou answers out loud: "system", "elevenlabs" or "off".
     pub voice_output: String,
     /// The ElevenLabs voice: "female" or "male".
     pub voice_gender: String,
+    /// One short press of the key starts hands-free dictation, instead of two.
+    pub one_tap_hands_free: bool,
     /// Fork: transcribe while you speak (flow/stream.rs), the words shown in
     /// the pill as they come. On unless turned off.
     pub stream: bool,
@@ -119,7 +128,9 @@ impl Default for Prefs {
         Self {
             enabled: false,
             key: FlowKey::default(),
+            key_combo: Vec::new(),
             edge: Edge::Bottom,
+            hide_pill: false,
             mic: String::new(),
             keep_days: 30,
             cleanup: false,
@@ -127,8 +138,10 @@ impl Default for Prefs {
             summary_engine: SummaryEngine::Claude,
             open_at_launch: true,
             voice: false,
+            mute_others: true,
             voice_output: "system".into(),
             voice_gender: "female".into(),
+            one_tap_hands_free: false,
             stream: true,
         }
     }

@@ -2,7 +2,7 @@
 // going through the same steps — preview the exact diff, click to confirm, and
 // only then does agents.rs back the file up and write it.
 
-import { Bridge, type AgentHookStatus } from "../core/bridge";
+import { Bridge, type AgentHookStatus, type AgyApprovalsStatus } from "../core/bridge";
 import { clear, h } from "../views/dom";
 import { item, renderDiff, statusDot } from "./parts";
 import { t } from "../i18n/i18n";
@@ -20,6 +20,11 @@ const TEXT = {
   get reinstall() { return t("Reinstall…"); },
   get uninstall() { return t("Uninstall…"); },
   get relayMissing() { return t("The relay isn't installed yet. Restart Coucou."); },
+  // Antigravity: the Mac's own strings (hooks.antigravity.approvals*, Settings → Antigravity).
+  get agyApprovals() { return t("Approve commands from the notch"); },
+  get agyApprovalsOn() { return t("Before Antigravity runs a shell command that none of its rules covers, the notch asks you first: Allow, Deny or Reply in terminal. Antigravity waits up to 2 min, then asks in its terminal. Coucou can't see Antigravity's mode, so in Auto mode the notch also asks about commands Antigravity would have run on its own."); },
+  get agyApprovalsOff() { return t("Antigravity asks for permission in its terminal, as usual."); },
+  get agyApprovalsUpdate() { return t("Click Install hooks once more, then restart Antigravity: hooks from an older Coucou don't let it wait for your answer."); },
   previewInstall: (name: string) => t("This is exactly what changes for {name}. Nothing else is touched.", { name }),
   get previewRemove() { return t("This removes Coucou's entries only. Everything else stays."); },
   backup: (to: string) => (to ? t("Backup → {path}", { path: to }) : t("No existing file — nothing to back up.")),
@@ -57,6 +62,8 @@ export function agentsSection(list: AgentHookStatus[] | null): HTMLElement {
 
 function agentBlock(initial: AgentHookStatus): HTMLElement {
   let status = initial;
+  /** Antigravity only: Approve commands from the notch. */
+  let agy: AgyApprovalsStatus | null = null;
   const head = h("div", {});
   const body = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
   const block = h("div", { style: "display:flex;flex-direction:column;gap:8px" }, head, body);
@@ -64,6 +71,7 @@ function agentBlock(initial: AgentHookStatus): HTMLElement {
   async function refresh() {
     const fresh = (await Bridge.agentHooksList())?.find((a) => a.id === status.id);
     if (fresh) status = fresh;
+    if (status.id === "antigravity") agy = await Bridge.agyApprovalsStatus();
     draw();
   }
 
@@ -82,7 +90,7 @@ function agentBlock(initial: AgentHookStatus): HTMLElement {
     }
     const row = item(status.name,
       h("div", {},
-        h("div", { text: status.approvals ? TEXT.approvals : TEXT.displayOnly }),
+        h("div", { text: status.approvals || agy?.enabled ? TEXT.approvals : TEXT.displayOnly }),
         h("div", { class: "path", text: status.path }),
       ),
       install,
@@ -92,6 +100,45 @@ function agentBlock(initial: AgentHookStatus): HTMLElement {
     );
     row.querySelector(".item-label")!.prepend(statusDot(status.installed));
     head.append(row);
+    if (status.id === "antigravity" && status.installed && agy) body.append(agyApprovalsRow(agy));
+  }
+
+  /**
+   * Antigravity's commands waiting for Allow / Deny on the island, as on the Mac: off by
+   * default, shown once the hooks are installed. Hooks written by an older Coucou give
+   * Antigravity 10 s, too short to wait for a click: they must be installed again.
+   */
+  function agyApprovalsRow(current: AgyApprovalsStatus): HTMLElement {
+    const hint = h("div", { class: "hint" });
+    const update = h("div", { class: "notice warn", text: TEXT.agyApprovalsUpdate });
+    const note = h("div", { class: "hint" });
+    const show = (s: AgyApprovalsStatus) => {
+      hint.textContent = s.enabled ? TEXT.agyApprovalsOn : TEXT.agyApprovalsOff;
+      update.style.display = s.enabled && !s.hooksReady ? "" : "none";
+    };
+    const box = h("input", { type: "checkbox" }) as HTMLInputElement;
+    box.checked = current.enabled;
+    box.addEventListener("change", () => {
+      void (async () => {
+        note.textContent = "";
+        try {
+          agy = await Bridge.agyApprovalsSetEnabled(box.checked);
+          show(agy);
+        } catch (err) {
+          box.checked = !box.checked;
+          note.textContent = errorText(err);
+        }
+      })();
+    });
+    show(current);
+    return h(
+      "div",
+      { style: "display:flex;flex-direction:column;gap:4px" },
+      h("div", { class: "row" }, h("label", {}, box, h("span", { text: ` ${TEXT.agyApprovals}` }))),
+      hint,
+      update,
+      note,
+    );
   }
 
   async function showPreview(install: boolean) {
@@ -134,5 +181,6 @@ function agentBlock(initial: AgentHookStatus): HTMLElement {
   }
 
   draw();
+  if (status.id === "antigravity") void refresh();
   return block;
 }
