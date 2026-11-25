@@ -41,6 +41,8 @@ const { onLanguageChange, setLanguage, t } = await import("../src/i18n/i18n.ts")
 const { FLOW_PAGES, NOTCH_PAGES, startHub } = await import("../src/hub/shell.ts");
 const pages = [...FLOW_PAGES, ...NOTCH_PAGES];
 const settle = () => new Promise((resolve) => setImmediate(resolve));
+/** The sidebar button of Notch → General (Mochi's room comes before it). */
+const GENERAL = pages.findIndex((page) => page.id === "general");
 
 beforeEach(() => {
   setLanguage("en");
