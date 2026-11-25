@@ -1544,7 +1544,7 @@ let notchPage: PageId = "general";
 
 /** The Coucou window's pages → the category they open in this layout. */
 const CATEGORY_OF: Partial<Record<PageId, string>> = {
-  general: "general", pills: "pills", integrations: "pills", agents: "agents", chat: "chat",
+  room: "room", general: "general", pills: "pills", integrations: "pills", agents: "agents", chat: "chat",
   flowsettings: "flow", voice: "voice", phone: "phone", shortcuts: "shortcuts",
   dictation: "flow", notes: "flow", insights: "flow", dictionary: "flow", snippets: "flow", styles: "flow",
   mailOverview: "mail", mailRules: "mail", mailBanned: "mail", mailVIP: "mail",
@@ -1593,6 +1593,24 @@ function flowPanel(ctx: HubContext): HTMLElement[] {
     ["options", t("Settings")],
   ], flowTab);
   return [h("div", { class: "flow-head" }, ctx.statusLine, tabs), body];
+}
+
+/** What stops the room drawn last: a redraw draws a new one. */
+let roomLeave: (() => void) | undefined;
+
+/**
+ * Fork: Mochi's room as a category of its own. It gets its own context, so the
+ * tabs of Flow and Mail, which hand the shared one's onLeave on, never stop it;
+ * the room from the previous draw is stopped here instead.
+ */
+function roomPanel(ctx: HubContext): HTMLElement[] {
+  roomLeave?.();
+  const own = Object.create(ctx) as HubContext;
+  own.onLeave = undefined;
+  roomLeave = () => own.onLeave?.();
+  const page = h("div", { class: "flow-page" });
+  void FLOW_PAGE_RENDERERS.room?.(page, own);
+  return [page];
 }
 
 /** Fork: the Mail section (Overview, Rules, Banned words, VIP) as one category. */
@@ -1648,6 +1666,9 @@ async function render() {
   const general = generalSection();
   clear(root);
   root.append(layout([
+    ...(hubCtx ? [
+      ["room", t("Mochi's room"), roomPanel(hubCtx)],
+    ] as [string, string, HTMLElement[]][] : []),
     ["general", t("General"), general.general],
     ["island", t("Island"), [general.island]],
     ["mochi", t("Mochi"), [general.mochi, wardrobeSection(fork)]],
