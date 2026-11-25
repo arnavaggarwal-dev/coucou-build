@@ -123,6 +123,7 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
         settings.phone_diffs = current.phone_diffs;
         settings.phone_usage = current.phone_usage;
         settings.phone_recap = current.phone_recap;
+        settings.phone_launch = current.phone_launch;
         settings.phone_services = current.phone_services.clone();
         settings.phone_relay = current.phone_relay;
         settings.phone_relay_url = current.phone_relay_url.clone();
@@ -749,6 +750,10 @@ fn secret_set(app: AppHandle, key: String, value: String) -> Result<(), String> 
     if key == "gitea-token" || key == "gitea-url" {
         integrations::gitea_credentials_changed(&app);
     }
+    if key == "n8n-api-key" || key == "n8n-url" {
+        integrations::n8n_credentials_changed(&app);
+    }
+    let _ = app.emit("secrets-changed", &key);
     Ok(())
 }
 
@@ -765,6 +770,10 @@ fn secret_clear(app: AppHandle, key: String) -> Result<(), String> {
     if key == "gitea-token" || key == "gitea-url" {
         integrations::gitea_credentials_changed(&app);
     }
+    if key == "n8n-api-key" || key == "n8n-url" {
+        integrations::n8n_credentials_changed(&app);
+    }
+    let _ = app.emit("secrets-changed", &key);
     Ok(())
 }
 
@@ -1123,6 +1132,9 @@ pub fn run() {
             phone_link::phone_usage_set_enabled,
             phone_link::phone_recap_status,
             phone_link::phone_recap_set_enabled,
+            phone_link::phone_launch_status,
+            phone_link::phone_launch_set_enabled,
+            phone_link::phone_link_publish_projects,
             phone_link::phone_relay_status,
             phone_link::phone_relay_set,
             phone_link::phone_relay_set_access,
